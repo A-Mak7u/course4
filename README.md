@@ -3,7 +3,7 @@
 - `eda.py` — разведочный анализ данных.  
 - `xgb_optuna_timesplit.py` — подбор гиперпараметров XGBoost через Optuna.  
 - `xgb_infer_full.py` — прогон лучшей модели на всём датасете.  
-- `shap_analysis.py` — SHAP-анализ (важность признаков).  
+- `shap_analysis.py` — SHAP-анализ.  
 - `poly_regression_compare.py` — сравнение линейных и полиномиальных аппроксимаций.  
 - `linear_regression_all_features.py` — линейная модель на всех признаках.  
 - `eda_plots/` — графики разведочного анализа.  
