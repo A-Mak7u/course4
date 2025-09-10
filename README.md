@@ -69,14 +69,12 @@
 - MAE = **0.98 °C**  
 - MedAE = **0.60 °C**  
 
-Графики подтверждают качество:
 
 <p align="center">
   <img src="outputs_runs/20250905_142927/scatter_pred_vs_true.png" width="400">
   <img src="outputs_runs/20250905_142927/residuals_hist.png" width="400">
 </p>
 
-Факт и прогноз лежат почти на линии y=x, ошибки распределены симметрично вокруг нуля.
 
 ---
 
