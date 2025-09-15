@@ -129,11 +129,43 @@ T ≈ 0.92 * Temperature_2m + 1.02 * Evaporation + 0.0013 * LST_Day + 0.089 * De
 
 ---
 
-## 📊 Итоги
+## 🔹 8. Модель с дополнительными признаками
 
-- XGBoost даёт **R² ≈ 0.97** на независимом тесте и ~0.94 на всём массиве.  
-- SHAP показал, что кроме ERA5 `Temperature_2m`, важны `Evaporation`, `LST_Day`, `Dewpoint_2m`.  
-- Линейные формулы удобны для интерпретации, но их точность ограничена (83%).  
-- Усложнение уравнения не даёт адекватного прироста — нелинейные модели эффективнее.  
+Добавлен новый скрипт `xgb_optuna_with_extra_features.py`, где в модель XGBoost включены дополнительные признаки:
+
+- `dayofyear`, `sin_doy`, `cos_doy` — сезонность  
+- `dewpoint_dep` = `Temperature_2m` – `Dewpoint_2m`  
+- `diurnal_range` = `LST_Day` – `LST_Night`  
+
+### Результаты на тесте (2022–2023):
+- R² = **0.987**  
+- RMSE = **1.33 °C**  
+- MAE = **0.85 °C**  
+- MedAE = **0.59 °C**  
+
+<p align="center">
+  <img src="outputs_runs/20250914_214644_extra/scatter_pred_vs_true.png" width="400">
+  <img src="outputs_runs/20250914_214644_extra/residuals_hist.png" width="400">
+</p>
+
+### Прогон на всём массиве (2013–2023)
+
+Использован скрипт `xgb_infer_full_extra.py`. Для корректного инференса исправлена обработка пропусков (`missing=np.nan` вместо фиктивных значений).
+
+- R² = **0.958**  
+- RMSE = **2.40 °C**  
+- MAE = **1.09 °C**  
+- MedAE = **0.52 °C**  
+- SMAPE = **4.6%**
+
+<p align="center">
+  <img src="outputs_runs/20250914_220035_infer_extra_fix/density_true_vs_pred.png" width="500">
+</p>
+
+Разбивки (`metrics_by_year.csv`, `metrics_by_month.csv`, `metrics_by_station.csv`) показывают, что качество стабильно выше 0.95 по годам, а зимние месяцы ожидаемо сложнее из-за облачности MODIS.  
+
+📌 В отличие от базовой модели, добавление новых признаков дало заметный прирост качества: R² выросло с ~0.94 → ~0.96 на полном массиве.
+
+---
 
 
