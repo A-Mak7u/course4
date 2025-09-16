@@ -317,3 +317,24 @@ extra_v2 стала главным улучшением работы: на по�
 - Лаги t-1..t-3 дали устойчивый прирост качества, особенно зимой (тестовое R² ~0.99).  
 - Проблемные станции остаются источником больших ошибок
 
+### 12.4. Лаги t-1..t-3 + spatial-фичи
+- Идея: добавить пространственные признаки (`sin/cos(lat)`, `sin/cos(lon)` или нормированные `X/Y`) и константу станции из train (`station_train_mean_T`) поверх модели из п. 12.3.
+- Папка: `outputs_runs/20250916_171729_lags123_spatial/`
+
+**Train (2013–2021):** R² = **0.9988**, RMSE = **0.43 °C**, MAE = **0.26 °C**  
+**Test (2022–2023):** R² = **0.9898**, RMSE = **1.17 °C**, MAE = **0.72 °C**  
+**Full (2013–2023):** R² = **0.9973**, RMSE = **0.63 °C**, MAE = **0.35 °C**
+
+<p align="center">
+  <img src="outputs_runs/20250916_171729_lags123_spatial/scatter_pred_vs_true.png" width="400">
+  <img src="outputs_runs/20250916_171729_lags123_spatial/density_true_vs_pred_full.png" width="400">
+</p>
+
+<p align="center">
+  <img src="outputs_runs/20250916_171729_lags123_spatial/boxplot_error_by_month.png" width="600">
+  <img src="outputs_runs/20250916_171729_lags123_spatial/residuals_hist.png" width="515">
+</p>
+
+
+**Замечания:** пространственные признаки сгладили межстанционные смещения и заметно улучшили RMSE на полном массиве. Зима остаётся самой сложной зоной.
+

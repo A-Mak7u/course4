@@ -1,4 +1,4 @@
-# модификация extra_v2: добавлены лаги t-1..t-3 для Temperature_2m, Dewpoint_2m, LST_Day, LST_Night
+# модификация lags123: добавлены spatial-фичи (sin/cos(lat,lon) или sin/cos нормированных X/Y) и station_train_mean_T
 
 import os, json, datetime
 import numpy as np
@@ -14,8 +14,7 @@ dcol = next(c for c in ["date","Date","datetime","dt","timestamp","time"] if c i
 df[dcol] = pd.to_datetime(df[dcol])
 scol = next((c for c in ["station_id","station","Cod","code","station_code","stationid"] if c in df.columns), None)
 if scol is None:
-    scol = "__station__"
-    df[scol] = 0
+    scol = "__station__"; df[scol] = 0
 
 if "year" not in df.columns: df["year"] = df[dcol].dt.year
 if "month" not in df.columns: df["month"] = df[dcol].dt.month
@@ -27,20 +26,55 @@ if "dewpoint_dep" not in df.columns and {"Temperature_2m","Dewpoint_2m"}.issubse
 if "diurnal_range" not in df.columns and {"LST_Day","LST_Night"}.issubset(df.columns):
     df["diurnal_range"] = df["LST_Day"] - df["LST_Night"]
 
+lat_candidates = [c for c in ["lat","latitude","Latitude","LAT","Y_final","y","Y"] if c in df.columns]
+lon_candidates = [c for c in ["lon","longitude","Longitude","LON","X_final","x","X"] if c in df.columns]
+latc = lat_candidates[0] if lat_candidates else None
+lonc = lon_candidates[0] if lon_candidates else None
+
+def add_spatial(d):
+    if latc and lonc:
+        latv = d[latc].astype(float)
+        lonv = d[lonc].astype(float)
+        plausible_deg = (latv.abs().max()<=90 and lonv.abs().max()<=180)
+        if plausible_deg:
+            latr = np.deg2rad(latv)
+            lonr = np.deg2rad(lonv)
+            d["sin_lat"] = np.sin(latr); d["cos_lat"] = np.cos(latr)
+            d["sin_lon"] = np.sin(lonr); d["cos_lon"] = np.cos(lonr)
+        else:
+            x = (lonv - lonv.min())/(lonv.max()-lonv.min() + 1e-9)
+            y = (latv - latv.min())/(latv.max()-latv.min() + 1e-9)
+            d["sin_lat"] = np.sin(2*np.pi*y); d["cos_lat"] = np.cos(2*np.pi*y)
+            d["sin_lon"] = np.sin(2*np.pi*x); d["cos_lon"] = np.cos(2*np.pi*x)
+    else:
+        d["sin_lat"]=0.0; d["cos_lat"]=1.0; d["sin_lon"]=0.0; d["cos_lon"]=1.0
+    return d
+
+df = add_spatial(df)
+
 df = df.sort_values([scol, dcol])
 for col in ["Temperature_2m","Dewpoint_2m","LST_Day","LST_Night"]:
     if col in df.columns:
         for L in (1,2,3):
             df[f"{col}_lag{L}"] = df.groupby(scol)[col].shift(L)
 
+target = "T"
+if target not in df.columns: raise RuntimeError("нет столбца T")
+
+train = df[(df["year"]>=2013)&(df["year"]<=2021)].copy()
+test  = df[(df["year"]>=2022)&(df["year"]<=2023)].copy()
+
+train_mean_T = train.dropna(subset=[target]).groupby(scol)[target].mean().rename("station_train_mean_T")
+df = df.merge(train_mean_T, left_on=scol, right_index=True, how="left")
+df["station_train_mean_T"] = df["station_train_mean_T"].fillna(df["station_train_mean_T"].mean())
+
 base = [
     "Temperature_2m","Dewpoint_2m","Surface_pressure","Evaporation","Total_precipitation",
-    "LST_Day","LST_Night","dayofyear","sin_doy","cos_doy","dewpoint_dep","diurnal_range","year","month"
+    "LST_Day","LST_Night","dayofyear","sin_doy","cos_doy","dewpoint_dep","diurnal_range",
+    "year","month","sin_lat","cos_lat","sin_lon","cos_lon","station_train_mean_T"
 ]
 lags = [f"{c}_lag{L}" for c in ["Temperature_2m","Dewpoint_2m","LST_Day","LST_Night"] for L in (1,2,3)]
 features = [f for f in base+lags if f in df.columns]
-target = "T"
-if target not in df.columns: raise RuntimeError("нет столбца T")
 
 train = df[(df["year"]>=2013)&(df["year"]<=2021)].dropna(subset=[target]).copy()
 test  = df[(df["year"]>=2022)&(df["year"]<=2023)].dropna(subset=[target]).copy()
@@ -48,9 +82,11 @@ val_year = int(train["year"].max())
 inner_train = train[train["year"]<val_year]
 inner_val   = train[train["year"]==val_year]
 
-def D(X, y): return xgb.DMatrix(X[features], label=y)
+def D(X, y): return xgboost.DMatrix(X[features], label=y)
+import xgboost
 
-study = optuna.create_study(direction="minimize")
+optuna.logging.set_verbosity(optuna.logging.INFO)
+study = optuna.create_study(direction="maximize")
 def objective(trial):
     p = dict(objective="reg:squarederror", tree_method="hist", device="cuda",
              max_depth=trial.suggest_int("max_depth",4,12),
@@ -61,26 +97,18 @@ def objective(trial):
              alpha=trial.suggest_float("alpha",1e-3,10.0,log=True),
              min_child_weight=trial.suggest_int("min_child_weight",1,20),
              seed=42)
-    m = xgb.train(p, D(inner_train, inner_train[target]), num_boost_round=4000,
-                  evals=[(D(inner_val, inner_val[target]),"val")],
-                  early_stopping_rounds=100, verbose_eval=False)
+    m = xgboost.train(p, D(inner_train, inner_train[target]), num_boost_round=4000,
+                      evals=[(D(inner_val, inner_val[target]),"val")],
+                      early_stopping_rounds=100, verbose_eval=False)
     pred = m.predict(D(inner_val, inner_val[target]))
-    return -r2_score(inner_val[target], pred)
+    return r2_score(inner_val[target], pred)
 study.optimize(objective, n_trials=60)
 
 bp = study.best_params
-if "lambda_" in bp:
-    bp["reg_lambda"] = bp.pop("lambda_")
 bp.update(dict(objective="reg:squarederror", tree_method="hist", device="cuda", seed=42))
-
-model = xgb.train(bp, D(train, train[target]), num_boost_round=4000,
-                  evals=[(D(inner_val, inner_val[target]),"val")],
-                  early_stopping_rounds=100, verbose_eval=False)
-
-pred_train = model.predict(D(train, train[target]))
-pred_test  = model.predict(D(test,  test[target]))
-full_df = df.dropna(subset=[target]).copy()
-pred_full = model.predict(D(full_df, full_df[target]))
+model = xgboost.train(bp, D(train, train[target]), num_boost_round=4000,
+                      evals=[(D(inner_val, inner_val[target]),"val")],
+                      early_stopping_rounds=100, verbose_eval=True)
 
 def pack(y, p):
     return dict(R2=float(r2_score(y,p)),
@@ -89,12 +117,17 @@ def pack(y, p):
                 MedAE=float(median_absolute_error(y,p)),
                 n=int(len(y)))
 
+pred_train = model.predict(D(train, train[target]))
+pred_test  = model.predict(D(test,  test[target]))
+full_df = df.dropna(subset=[target]).copy()
+pred_full = model.predict(D(full_df, full_df[target]))
+
 metrics_train = pack(train[target], pred_train)
 metrics_test  = pack(test[target],  pred_test)
 metrics_full  = pack(full_df[target], pred_full)
 
 ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-outdir = f"outputs_runs/{ts}_lags123_fix"
+outdir = f"outputs_runs/{ts}_lags123_spatial"
 os.makedirs(outdir, exist_ok=True)
 
 json.dump(metrics_train, open(os.path.join(outdir,"metrics_train.json"),"w"), indent=2, ensure_ascii=False)
@@ -109,8 +142,7 @@ def save_group_metrics(df_src, y_true, y_pred, by_col, path_csv):
     rows = []
     for k, s in g:
         if len(s) < 5: continue
-        rows.append(dict(group=k,
-                         n=len(s),
+        rows.append(dict(group=k, n=len(s),
                          R2=float(r2_score(s["__y"], s["__p"])) if len(s)>=2 else np.nan,
                          RMSE=float(np.sqrt(mean_squared_error(s["__y"], s["__p"]))),
                          MAE=float(mean_absolute_error(s["__y"], s["__p"])),
@@ -156,7 +188,7 @@ try:
         s = full_df[full_df["month"]==m]
         if len(s) >= 5:
             box.append((pred_full[full_df["month"]==m] - s[target].to_numpy()))
-    plt.boxplot([b for b in box if len(b)>0], labels=[str(i) for i in range(1,1+len(box))])
+    plt.boxplot([b for b in box if len(b)>0], tick_labels=[str(i) for i in range(1,1+len(box))])
     plt.xlabel("Month")
     plt.ylabel("Error (Pred-True)")
     plt.title("Error by month (full)")
@@ -173,8 +205,7 @@ try:
     xy = np.vstack([x,y])
     try:
         z = gaussian_kde(xy)(xy)
-        idx = z.argsort()
-        x, y, z = x[idx], y[idx], z[idx]
+        idx = z.argsort(); x, y, z = x[idx], y[idx], z[idx]
         plt.scatter(x, y, c=z, s=3)
     except Exception:
         plt.scatter(x, y, s=3, alpha=0.3)
