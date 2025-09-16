@@ -2,12 +2,17 @@
 
 - `eda.py` — разведочный анализ данных.  
 - `xgb_optuna_timesplit.py` — подбор гиперпараметров XGBoost через Optuna.  
-- `xgb_infer_full.py` — прогон лучшей модели на всём датасете.  
+- `xgb_infer_full.py` — прогон базовой модели на всём датасете.  
+- `xgb_optuna_with_extra_features.py` — обучение модели с дополнительными признаками.  
+- `xgb_infer_full_extra.py` — инференс extra-модели.  
+- `xgb_infer_full_extra_v2.py` — инференс расширенной extra_v2 модели.  
 - `shap_analysis.py` — SHAP-анализ.  
 - `poly_regression_compare.py` — сравнение линейных и полиномиальных аппроксимаций.  
 - `linear_regression_all_features.py` — линейная модель на всех признаках.  
+- `bias_correction.py` — постобработка (коррекция смещения по станциям).  
 - `eda_plots/` — графики разведочного анализа.  
 - `outputs_runs/` — результаты запусков моделей (метрики, графики, модели).  
+
 
 ---
 
