@@ -6,12 +6,19 @@
 - `xgb_optuna_with_extra_features.py` — обучение модели с дополнительными признаками.  
 - `xgb_infer_full_extra.py` — инференс extra-модели.  
 - `xgb_infer_full_extra_v2.py` — инференс расширенной extra_v2 модели.  
+- `xgb_optuna_with_lags.py` — модель с лагами (t-1).  
+- `xgb_optuna_with_lags123.py` — модель с лагами (t-1, t-2, t-3).  
+- `xgb_optuna_with_lags123_fix.py` — исправленная версия с метриками по месяцам и станциям.  
+- `xgb_optuna_with_lags123_spatial.py` — модель с лагами и spatial-признаками (sin/cos(lat,lon), station_train_mean_T).  
+- `xgb_optuna_with_lags123_spatial_bias.py` — spatial-модель + коррекция смещения по станциям.  
+- `xgb_optuna_with_lags123_spatial_longrun_ens5.py` — ансамбль из 5 моделей (длинный прогон, spatial+lags).  
 - `shap_analysis.py` — SHAP-анализ.  
 - `poly_regression_compare.py` — сравнение линейных и полиномиальных аппроксимаций.  
 - `linear_regression_all_features.py` — линейная модель на всех признаках.  
 - `bias_correction.py` — постобработка (коррекция смещения по станциям).  
 - `eda_plots/` — графики разведочного анализа.  
 - `outputs_runs/` — результаты запусков моделей (метрики, графики, модели).  
+
 
 
 ---
