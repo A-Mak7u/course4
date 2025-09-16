@@ -1,4 +1,4 @@
-# Модификация extra_v2: добавлены лаги t-1..t-3 для Temperature_2m, Dewpoint_2m, LST_Day, LST_Night; фиксы: маппинг lambda_→lambda, корректный расчёт RMSE для train/test/full; вывод метрик, CSV по месяцам/станциям, графики; сохранение в outputs_runs/<timestamp>_lags123_fix/
+# vодификация extra_v2: добавлены лаги t-1..t-3 для Temperature_2m, Dewpoint_2m, LST_Day, LST_Night
 
 import os, json, datetime
 import numpy as np
