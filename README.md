@@ -576,3 +576,84 @@ Full:  R²=**0.998005**, RMSE=**0.544927** °C, MAE=**0.22686** °C
 - Ошибки в целом малы, но их географическое распределение неоднородно.  
 - На тестовом периоде заметны отдельные станции с повышенным bias (систематическим смещением), однако MAE остаётся в пределах ~1 °C.  
 - На полном массиве данные сглаживаются, модель держит очень высокое качество (R² ~0.998).  
+
+
+## 🔹 16. Проверка автокорреляции остатков (ACF/PACF, Ljung–Box)
+
+**Папка:** `outputs_runs/20250923_172831_resid_acf_pacf/`  
+
+### 🔧 Что сделано
+- Обучил модель `lags123_spatial_longrun` на всем массиве (2013–2023).
+- Получил остатки `resid = y - ŷ` для train/test/full.
+- Провел:
+  - расчёт **ACF/PACF** до 60 лагов;
+  - тест **Ljung–Box** на серийную зависимость;
+  - отдельный анализ для зимних месяцев.
+
+---
+
+### 📊 Метрики
+
+**Train (2013–2021):**  
+- R² = **0.9999**  
+- RMSE = **0.07 °C**  
+- MAE = **0.04 °C**  
+- MedAE = **0.02 °C**  
+
+**Test (2022–2023):**  
+- R² = **0.991**  
+- RMSE = **1.08 °C**  
+- MAE = **0.69 °C**  
+- MedAE = **0.49 °C**  
+
+**Full (2013–2023):**  
+- R² = **0.9984**  
+- RMSE = **0.48 °C**  
+- MAE = **0.16 °C**  
+- MedAE = **0.03 °C**
+
+<sub>см. `metrics_train.json`, `metrics_test.json`, `metrics_full.json`</sub>  
+
+---
+
+### 📂 Файлы в папке
+- `params.json` — лучшие гиперпараметры.  
+- `features_used.json` — список признаков.  
+- `residuals_all.csv` — остатки с привязкой к дате/станции.  
+- `ljungbox_full.csv`, `ljungbox_test.csv` — результаты теста Ljung–Box.  
+
+---
+
+### 📈 Визуализации
+
+#### Предсказания vs Истина и распределение остатков
+<p align="center">
+  <img src="outputs_runs/20250923_172831_resid_acf_pacf/scatter_pred_vs_true.png" width="420">
+  <img src="outputs_runs/20250923_172831_resid_acf_pacf/residuals_hist.png" width="420">
+</p>
+
+#### ACF/PACF для полного массива
+<p align="center">
+  <img src="outputs_runs/20250923_172831_resid_acf_pacf/resid_full_acf.png" width="500">
+  <img src="outputs_runs/20250923_172831_resid_acf_pacf/resid_full_pacf.png" width="500">
+</p>
+
+#### ACF/PACF для теста (2022–2023)
+<p align="center">
+  <img src="outputs_runs/20250923_172831_resid_acf_pacf/resid_test_acf.png" width="500">
+  <img src="outputs_runs/20250923_172831_resid_acf_pacf/resid_test_pacf.png" width="500">
+</p>
+
+#### ACF/PACF для зимних месяцев (тест)
+<p align="center">
+  <img src="outputs_runs/20250923_172831_resid_acf_pacf/resid_test_winter_acf.png" width="500">
+  <img src="outputs_runs/20250923_172831_resid_acf_pacf/resid_test_winter_pacf.png" width="500">
+</p>
+
+---
+
+### 📌 Выводы
+- **ACF/PACF:** пики только на лаге 0; для лагов >1 значения колеблются вокруг нуля.  
+- **Ljung–Box:** p-value > 0.05 для большинства лагов → нет значимой автокорреляции.  
+- **Зима:** распределение остатков шире (из-за облачности и MODIS-пропусков), но автокорреляция также отсутствует.  
+- Итог: остатки думаю можно считать **белым шумом**, серьёзной серийной зависимости не осталось.  
