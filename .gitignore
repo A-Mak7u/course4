@@ -1,2 +1,27 @@
-outputs_runs/20250905_142012/xgb_model.pkl
-outputs_runs/20250905_142927/xgb_model.pkl
+# IDE
+.idea/
+.vscode/
+
+# Python cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Local environment
+.env
+.venv/
+venv/
+
+# ML artifacts (large/raw)
+outputs_runs/**/predictions.csv
+outputs_runs/**/residuals_all.csv
+outputs_runs/**/xgb_model.pkl
+outputs_runs/**/xgb_model.json
+
+# Temporary LaTeX and office artifacts
+*.aux
+*.log
+*.out
+*.toc
+~$*.docx
