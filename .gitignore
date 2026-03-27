@@ -11,10 +11,14 @@ __pycache__/
 # Local environment
 .env
 .venv/
+.venv_geo/
 .venv_broken_*/
 venv/
+.netrc
+.cdsapirc
 CONTEXT.md
 context.md
+instructions/
 
 # ML artifacts (large/raw)
 models/
@@ -33,6 +37,9 @@ outputs_runs/**/model_*.json
 *.pt
 *.pth
 *.ckpt
+tmp_*/
+data/volgograd/raw/
+data/volgograd/interim/
 
 # Temporary LaTeX and office artifacts
 *.aux
