@@ -40,6 +40,7 @@ outputs_runs/**/model_*.json
 tmp_*/
 data/volgograd/raw/
 data/volgograd/interim/
+data/volgograd/processed/
 
 # Temporary LaTeX and office artifacts
 *.aux
