@@ -11,13 +11,28 @@ __pycache__/
 # Local environment
 .env
 .venv/
+.venv_broken_*/
 venv/
+CONTEXT.md
+context.md
 
 # ML artifacts (large/raw)
+models/
 outputs_runs/**/predictions.csv
+outputs_runs/**/predictions_*.csv
 outputs_runs/**/residuals_all.csv
+outputs_runs/**/bridge_predictions.csv
 outputs_runs/**/xgb_model.pkl
 outputs_runs/**/xgb_model.json
+outputs_runs/**/xgb_model.ubj
+outputs_runs/**/model.json
+outputs_runs/**/model_*.json
+*.pkl
+*.joblib
+*.onnx
+*.pt
+*.pth
+*.ckpt
 
 # Temporary LaTeX and office artifacts
 *.aux

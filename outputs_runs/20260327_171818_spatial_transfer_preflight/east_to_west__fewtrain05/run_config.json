@@ -1,0 +1,27 @@
+{
+  "source_csv": "/tmp/spatial_transfer_4wmgzxqe/saratov_east.csv",
+  "target_csv": "/tmp/spatial_transfer_4wmgzxqe/saratov_west_fewtrain_n05.csv",
+  "modes": [
+    "zero-shot",
+    "finetune",
+    "scratch"
+  ],
+  "train_years": [
+    2013,
+    2021
+  ],
+  "test_years": [
+    2022,
+    2023
+  ],
+  "target_max_stations": null,
+  "zero_inflated_precip": false,
+  "winter_only": false,
+  "device": "cuda",
+  "n_trials": 6,
+  "num_boost_round": 1800,
+  "early_stopping_rounds": 90,
+  "seed": 42,
+  "source_rows": 103836,
+  "target_rows": 104442
+}

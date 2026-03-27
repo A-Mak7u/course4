@@ -1,0 +1,43 @@
+{
+  "input_csv": "/home/maks/Documents/course4/final_2013_2023_T_ERA5_LST_daynight.csv",
+  "station_col": "Cod",
+  "date_col": "Date",
+  "target_col": "T",
+  "lon_col": "X_final",
+  "lat_col": "Y_final",
+  "lon_median": 46.370644215,
+  "station_counts": {
+    "east": 26,
+    "west": 26
+  },
+  "active_station_counts": {
+    "east": 7,
+    "west": 7
+  },
+  "low_station_protocol": "full target test, masked target-train T outside sampled calibration stations",
+  "train_years": [
+    2013,
+    2021
+  ],
+  "test_years": [
+    2022,
+    2023
+  ],
+  "target_max_stations_grid": [
+    0,
+    5,
+    3
+  ],
+  "modes": [
+    "zero-shot",
+    "finetune",
+    "scratch"
+  ],
+  "device": "cuda",
+  "n_trials": 6,
+  "num_boost_round": 1800,
+  "early_stopping_rounds": 90,
+  "seed": 42,
+  "zero_inflated_precip": false,
+  "winter_only": false
+}

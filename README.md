@@ -33,11 +33,11 @@
 
 | Этап | Скрипт / Run | R2 | RMSE | MAE |
 |---|---|---:|---:|---:|
-| Базовый timesplit | `xgb_optuna_timesplit.py` / `20250905_142927` | 0.9684 | 2.0564 | 0.9750 |
-| Extra-features v2 | `xgb_optuna_with_extra_features_v2.py` / `20250915_165542_extra_v2` | 0.9868 | 1.3300 | 0.8482 |
-| Лаги `t-1` | `xgb_optuna_with_lags.py` / `20250916_154740_lags` | 0.9875 | 1.2945 | 0.7963 |
-| Лаги `t-1..t-3` | `xgb_optuna_with_lags123.py` / `20250916_163343_lags123_fix` | 0.9896 | 1.1816 | 0.7452 |
-| Лаги `t-1..t-3` + spatial | `xgb_optuna_with_lags123_spatial.py` / `20250916_171729_lags123_spatial` | 0.9898 | 1.1675 | 0.7189 |
+| Базовый timesplit | `xgb/xgb_optuna_timesplit.py` / `20250905_142927` | 0.9684 | 2.0564 | 0.9750 |
+| Extra-features v2 | `xgb/xgb_optuna_with_extra_features_v2.py` / `20250915_165542_extra_v2` | 0.9868 | 1.3300 | 0.8482 |
+| Лаги `t-1` | `xgb/xgb_optuna_with_lags.py` / `20250916_154740_lags` | 0.9875 | 1.2945 | 0.7963 |
+| Лаги `t-1..t-3` | `xgb/xgb_optuna_with_lags123.py` / `20250916_163343_lags123_fix` | 0.9896 | 1.1816 | 0.7452 |
+| Лаги `t-1..t-3` + spatial | `xgb/xgb_optuna_with_lags123_spatial.py` / `20250916_171729_lags123_spatial` | 0.9898 | 1.1675 | 0.7189 |
 
 Итог этапа: подтверждённый путь улучшения был линейным и понятным: сезонные/производные признаки дали основной скачок от базового timesplit, лаговый блок ещё снизил ошибку, spatial-блок и `station_train_mean_T` довели ветку до лучшего результата на полном датасете.
 
@@ -45,7 +45,7 @@
 
 ## 3. Лучшая рабочая база
 
-Скрипт: `xgb_optuna_with_lags123_spatial.py`  
+Скрипт: `xgb/xgb_optuna_with_lags123_spatial.py`  
 Run: `outputs_runs/20250916_171729_lags123_spatial`
 
 Что закрепилось как рабочая база:
@@ -75,18 +75,18 @@ Run: `outputs_runs/20250916_171729_lags123_spatial`
 
 ## 4. Что не стало основной веткой
 
-Сезонное разбиение (`xgb_optuna_with_extra_features_seasonal.py`, `20250915_094512_seasonal`):
+Сезонное разбиение (`xgb/xgb_optuna_with_extra_features_seasonal.py`, `20250915_094512_seasonal`):
 
 - Cold: `R2 = 0.9450`, `RMSE = 1.5472`, `MAE = 0.9546`
 - Warm: `R2 = 0.9708`, `RMSE = 1.1383`, `MAE = 0.7684`
 
-Post-bias по станциям (`xgb_optuna_with_lags123_spatial_bias.py`, `20250916_173641_lags123_spatial_bias`):
+Post-bias по станциям (`xgb/xgb_optuna_with_lags123_spatial_bias.py`, `20250916_173641_lags123_spatial_bias`):
 
 - до коррекции: `R2 = 0.9897`, `RMSE = 1.1773`, `MAE = 0.7239`
 - после коррекции: `R2 = 0.9897`, `RMSE = 1.1773`, `MAE = 0.7239`
 - эффект на уровне шума, прироста относительно обычной `lags123_spatial` нет
 
-Long-run и ансамбль (`xgb_optuna_with_lags123_spatial_longrun.py`, `xgb_optuna_with_lags123_spatial_longrun_ens5.py`):
+Long-run и ансамбль (`xgb/xgb_optuna_with_lags123_spatial_longrun.py`, `xgb/xgb_optuna_with_lags123_spatial_longrun_ens5.py`):
 
 - long-run: `R2 = 0.9893`, `RMSE = 1.1961`, `MAE = 0.7304`
 - ens5: `R2 = 0.9894`, `RMSE = 1.1927`, `MAE = 0.7286`
@@ -106,7 +106,7 @@ Long-run и ансамбль (`xgb_optuna_with_lags123_spatial_longrun.py`, `xgb
 - декабрь: `MAE = 0.7526`
 - для сравнения, август: `MAE = 0.5451`
 
-Отдельный зимний прогон (`xgb_optuna_winter_only.py`, `20250923_111926_winter_only`) это подтвердил:
+Отдельный зимний прогон (`xgb/xgb_optuna_winter_only.py`, `20250923_111926_winter_only`) это подтвердил:
 
 - `R2 = 0.9514`
 - `RMSE = 1.4540`
@@ -114,7 +114,7 @@ Long-run и ансамбль (`xgb_optuna_with_lags123_spatial_longrun.py`, `xgb
 
 ### 5.2 Station-wise доменный сдвиг
 
-Диагностический прогон `xgb_optuna_with_error_map.py` (`20250923_114911_error_map`) показал, что основная проблема сосредоточена не в среднем уровне ошибки, а в отдельных станциях:
+Диагностический прогон `xgb/xgb_optuna_with_error_map.py` (`20250923_114911_error_map`) показал, что основная проблема сосредоточена не в среднем уровне ошибки, а в отдельных станциях:
 
 - худшая станция на test: `35108`, `MAE = 2.5119`
 - следующая группа по ухудшению: `35007`, `27857`, `27995`, `34289`
@@ -123,7 +123,7 @@ Long-run и ансамбль (`xgb_optuna_with_lags123_spatial_longrun.py`, `xgb
   <img src="outputs_runs/20250923_114911_error_map/map_mae_test.png" width="520">
 </p>
 
-Проверка `xgb_optuna_with_lags123_spatial_exclude35108.py` это отдельно подтвердила:
+Проверка `xgb/xgb_optuna_with_lags123_spatial_exclude35108.py` это отдельно подтвердила:
 
 - с `35108`: `R2 = 0.9894`, `RMSE = 1.1913`, `MAE = 0.7281`
 - без `35108`: `R2 = 0.9954`, `RMSE = 0.7774`, `MAE = 0.5920`
@@ -132,7 +132,7 @@ Long-run и ансамбль (`xgb_optuna_with_lags123_spatial_longrun.py`, `xgb
 
 ### 5.3 Остаточная временная структура
 
-Скрипт: `xgb_optuna_with_resid_acf_pacf.py`  
+Скрипт: `xgb/xgb_optuna_with_resid_acf_pacf.py`  
 Run: `outputs_runs/20250923_172831_resid_acf_pacf`
 
 - `R2 = 0.9892`
@@ -148,10 +148,40 @@ Run: `outputs_runs/20250923_172831_resid_acf_pacf`
 
 ---
 
-## 6. Сводка
+## 6. Spatial Transfer Preflight
 
-- Лучшая подтверждённая база на полном наборе станций: `xgb_optuna_with_lags123_spatial.py`, run `outputs_runs/20250916_171729_lags123_spatial`.
+Скрипт: `transfer/spatial_transfer_preflight.py`  
+Run: `outputs_runs/20260327_171818_spatial_transfer_preflight`
+
+Постановка:
+
+- `52` станции разделены на `west/east` по медиане долготы
+- в каждой половине наблюдаемая `T` есть только у `7` станций
+- режим `fewtrain` оставляет полный target-test, но в target-train сохраняет `T` только на `5` или `3` калибровочных станциях
+
+Метрики test (`2022-2023`):
+
+| Направление | Режим target-train | Лучший режим | R2 | RMSE | MAE |
+|---|---|---|---:|---:|---:|
+| `west -> east` | полный target-train | `scratch` | 0.9855 | 1.4800 | 0.8923 |
+| `west -> east` | `5` станций | `finetune` | 0.9817 | 1.6579 | 0.9554 |
+| `west -> east` | `3` станции | `scratch` | 0.9792 | 1.7695 | 1.0143 |
+| `east -> west` | полный target-train | `scratch` | 0.9949 | 0.7713 | 0.5869 |
+| `east -> west` | `5` станций | `scratch` | 0.9951 | 0.7614 | 0.5850 |
+| `east -> west` | `3` станции | `scratch` | 0.9946 | 0.7958 | 0.6115 |
+
+<p align="center">
+  <img src="outputs_runs/20260327_171818_spatial_transfer_preflight/summary_rmse.png" width="760">
+</p>
+
+Итог этапа: переносимость оказалась выраженно асимметричной. Направление `west -> east` заметно сложнее `east -> west`, что согласуется с уже выявленными проблемами на восточном кластере станций. При `5` калибровочных станциях few-shot-адаптация ещё удерживает качество, но при `3` станциях деградация уже явная; `zero-shot` стабильно слабее, чем `finetune/scratch`, на сложной стороне.
+
+---
+
+## 7. Сводка
+
+- Лучшая подтверждённая база на полном наборе станций: `xgb/xgb_optuna_with_lags123_spatial.py`, run `outputs_runs/20250916_171729_lags123_spatial`.
 - Ключевые факторы прироста: календарные и производные признаки, лаги `t-1..t-3`, spatial-блок, `station_train_mean_T`.
 - Улучшения без закрепления в основной ветке: seasonal split, post-bias, long-run, `ens5`.
 - Подтверждённые слабые места: зима, station-wise сдвиг, особенно станция `35108`, остаточная автокорреляция.
-- Локальные `pipeline_common.py`, `xgb_transfer_experiment.py`, `rp5_hydromet_bridge.py` пока без подтверждённых артефактов в `outputs_runs/` и в отчётную часть не включаются.
+- Подтверждённый transfer-preflight внутри текущего региона: `transfer/spatial_transfer_preflight.py`, run `outputs_runs/20260327_171818_spatial_transfer_preflight`.
