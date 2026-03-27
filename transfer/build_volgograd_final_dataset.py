@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import tempfile
 from pathlib import Path
 
 import pandas as pd
@@ -21,6 +22,27 @@ FINAL_COLUMNS = [
     "X_final",
     "Y_final",
 ]
+
+
+def atomic_write_csv(df: pd.DataFrame, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_file = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        newline="",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    )
+    tmp_path = Path(tmp_file.name)
+    tmp_file.close()
+    try:
+        df.to_csv(tmp_path, index=False)
+        tmp_path.replace(path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
 
 
 def make_parser() -> argparse.ArgumentParser:
@@ -103,8 +125,7 @@ def main() -> None:
     merged = merged[FINAL_COLUMNS].sort_values(["Cod", "Date"]).reset_index(drop=True)
 
     output_path = Path(args.output_csv)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    merged.to_csv(output_path, index=False)
+    atomic_write_csv(merged, output_path)
 
     print(f"Final rows: {len(merged)}")
     print(f"Stations: {merged['Cod'].nunique()}")

@@ -34,6 +34,81 @@ ERA5_RENAME_MAP = {
 ERA5_POINT_COLUMNS = ["t2m", "d2m", "sp", "tp", "e"]
 
 
+def atomic_write_csv(df: pd.DataFrame, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_file = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        newline="",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    )
+    tmp_path = Path(tmp_file.name)
+    tmp_file.close()
+    try:
+        df.to_csv(tmp_path, index=False)
+        tmp_path.replace(path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+
+def atomic_write_text(text: str, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_file = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        delete=False,
+    )
+    tmp_path = Path(tmp_file.name)
+    try:
+        with tmp_file:
+            tmp_file.write(text)
+        tmp_path.replace(path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+
+def is_valid_archive(path: Path) -> bool:
+    if not path.exists() or not zipfile.is_zipfile(path):
+        return False
+    try:
+        with zipfile.ZipFile(path) as zf:
+            return bool(zf.namelist())
+    except zipfile.BadZipFile:
+        return False
+
+
+def is_valid_month_csv(path: Path, year: int, month: int, station_count: int) -> bool:
+    if not path.exists():
+        return False
+    required = {"Cod", "Date", *ERA5_RENAME_MAP.values(), "X_final", "Y_final"}
+    try:
+        df = pd.read_csv(path, parse_dates=["Date"])
+    except Exception:
+        return False
+    if required.difference(df.columns):
+        return False
+    expected_days = calendar.monthrange(year, month)[1]
+    expected_rows = expected_days * station_count
+    if len(df) != expected_rows:
+        return False
+    if df["Cod"].nunique() != station_count:
+        return False
+    dates = pd.to_datetime(df["Date"], utc=True, errors="coerce").dt.normalize()
+    if dates.isna().any():
+        return False
+    if dates.nunique() != expected_days:
+        return False
+    return True
+
+
 def make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Сборка суточных ERA5-признаков по станциям Волгоградской области")
     parser.add_argument("--stations-csv", default=str(PROCESSED_ROOT / "volgograd_station_metadata_meteostat.csv"))
@@ -118,13 +193,20 @@ def download_month_archive(
     raw_dir.mkdir(parents=True, exist_ok=True)
     archive_path = month_archive_path(raw_dir, year, month)
     if archive_path.exists() and not force:
-        print(f"[ERA5] period={year}-{month:02d} download skipped, archive already exists: {archive_path}")
-        return archive_path
+        if is_valid_archive(archive_path):
+            print(f"[ERA5] period={year}-{month:02d} download skipped, archive already exists: {archive_path}")
+            return archive_path
+        print(f"[ERA5] period={year}-{month:02d} invalid archive detected, redownloading: {archive_path}")
+        archive_path.unlink()
 
     request = build_request(year, month, bbox_pad=bbox_pad)
     print(f"[ERA5] period={year}-{month:02d} download started")
     result = client.retrieve("reanalysis-era5-single-levels", request)
-    result.download(str(archive_path))
+    tmp_archive = archive_path.with_suffix(f"{archive_path.suffix}.tmp")
+    if tmp_archive.exists():
+        tmp_archive.unlink()
+    result.download(str(tmp_archive))
+    tmp_archive.replace(archive_path)
     print(f"[ERA5] period={year}-{month:02d} download finished: {archive_path}")
     return archive_path
 
@@ -194,7 +276,7 @@ def build_combined_outputs(
         combined["Date"] = combined["Date"].dt.tz_localize("UTC")
 
     combined_path = processed_dir / f"volgograd_era5_daily_{start_year}_{end_year}.csv"
-    combined.to_csv(combined_path, index=False)
+    atomic_write_csv(combined, combined_path)
 
     expected_days = pd.date_range(f"{start_year}-01-01", f"{end_year}-12-31", freq="D", tz="UTC")
     coverage = (
@@ -206,7 +288,7 @@ def build_combined_outputs(
     coverage["expected_days"] = len(expected_days)
     coverage["coverage_ratio"] = coverage["era5_days_present"] / coverage["expected_days"]
     coverage_path = processed_dir / f"volgograd_era5_coverage_{start_year}_{end_year}.csv"
-    coverage.to_csv(coverage_path, index=False)
+    atomic_write_csv(coverage, coverage_path)
     return combined_path, coverage_path
 
 
@@ -224,6 +306,7 @@ def main() -> None:
     interim_dir = Path(args.interim_dir)
     processed_dir = Path(args.processed_dir)
     interim_dir.mkdir(parents=True, exist_ok=True)
+    station_count = len(stations)
 
     client = None if args.process_only else cdsapi.Client(quiet=False, progress=False)
 
@@ -243,15 +326,18 @@ def main() -> None:
 
         out_csv = month_csv_path(interim_dir, year, month)
         if out_csv.exists() and not args.force_process:
-            print(f"[ERA5] period={year}-{month:02d} process skipped, CSV already exists: {out_csv}")
-            continue
+            if is_valid_month_csv(out_csv, year, month, station_count):
+                print(f"[ERA5] period={year}-{month:02d} process skipped, CSV already exists: {out_csv}")
+                continue
+            print(f"[ERA5] period={year}-{month:02d} invalid CSV detected, rebuilding: {out_csv}")
+            out_csv.unlink()
 
         if not archive_path.exists():
             raise RuntimeError(f"Для period={year}-{month:02d} не найден ERA5 archive: {archive_path}")
 
         print(f"[ERA5] period={year}-{month:02d} processing started")
         daily = process_year_archive(archive_path, stations)
-        daily.to_csv(out_csv, index=False)
+        atomic_write_csv(daily, out_csv)
         print(f"[ERA5] period={year}-{month:02d} processing finished: rows={len(daily)} -> {out_csv}")
 
     if not args.download_only:
@@ -275,7 +361,7 @@ def main() -> None:
             "variables": list(ERA5_VARIABLES),
         }
         meta_path = processed_dir / f"volgograd_era5_build_meta_{min(years)}_{max(years)}.json"
-        meta_path.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+        atomic_write_text(json.dumps(meta, indent=2, ensure_ascii=False), meta_path)
         print(f"[ERA5] combined CSV: {combined_path}")
         print(f"[ERA5] coverage CSV: {coverage_path}")
         print(f"[ERA5] meta JSON: {meta_path}")
