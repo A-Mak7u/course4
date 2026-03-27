@@ -102,7 +102,15 @@ def list_bundle_files(token: str, task_id: str) -> list[dict]:
         timeout=60,
     )
     response.raise_for_status()
-    return response.json()
+    payload = response.json()
+    if isinstance(payload, dict):
+        files = payload.get("files")
+        if isinstance(files, list):
+            return files
+        raise RuntimeError(f"Неожиданный формат AppEEARS bundle payload: {json.dumps(payload, ensure_ascii=False)[:1000]}")
+    if isinstance(payload, list):
+        return payload
+    raise RuntimeError(f"Неожиданный тип AppEEARS bundle payload: {type(payload).__name__}")
 
 
 def download_bundle_files(
