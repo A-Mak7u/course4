@@ -102,7 +102,7 @@ def parse_results_csv(path: Path, points: pd.DataFrame) -> pd.DataFrame:
 def main() -> None:
     args = make_parser().parse_args()
     input_dir = Path(args.input_dir)
-    result_files = sorted(input_dir.glob("*results.csv"))
+    result_files = sorted(input_dir.rglob("*results.csv"))
     if not result_files:
         raise RuntimeError(f"В {input_dir} не найдено AppEEARS results CSV")
 
