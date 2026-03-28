@@ -191,9 +191,14 @@ Run: `outputs_runs/20260327_203205_volgograd_transfer_suite`
 
 Постановка transfer:
 
+- transfer-пайплайн вынесен в `transfer/pipeline_common.py` и `transfer/xgb_transfer_experiment.py`
+- по признакам это продолжение лучшей саратовской ветки `lags123_spatial`: календарные, производные, spatial и лаги `t-1..t-3`
+- это не прямой запуск `xgb/xgb_optuna_with_lags123_spatial.py`, а общий вариант той же логики для межрегионального переноса
 - `zero-shot`: обучение на саратовском датасете и прямое применение к Волгограду без переобучения
 - `finetune`: старт из саратовской модели с последующей адаптацией на Волгограде
 - `scratch`: обучение на Волгограде с нуля без переноса весов
+- для `zero-shot/finetune` используется общий для двух регионов набор признаков без `station_train_mean_T`
+- для `scratch` используется полный target-набор признаков, включая `station_train_mean_T`
 - `full`: в target-train доступны все волгоградские станции с наблюдаемой `T`
 - `fewshot_5` и `fewshot_3`: в target-train оставлены только `5` или `3` калибровочные станции
 - калибровочные станции: станции нового региона, по которым модель видит реальную `T` и может подстроиться под локальное смещение
@@ -220,16 +225,28 @@ Run: `outputs_runs/20260327_203205_volgograd_transfer_suite`
 
 `full` как основное сравнение по второму региону:
 
-<p align="center">
-  <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/zero_shot/scatter_test.png" width="420">
-  <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/scratch/scatter_test.png" width="420">
-</p>
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/zero_shot/scatter_test.png" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/scratch/scatter_test.png" width="100%">
+    </td>
+  </tr>
+</table>
 <p align="center"><sub>Рис. 2. Слева `zero-shot`, справа `scratch`: зависимость прогноза от истинной температуры на test для `full`.</sub></p>
 
-<p align="center">
-  <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/zero_shot/residuals_test.png" width="420">
-  <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/scratch/residuals_test.png" width="420">
-</p>
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/zero_shot/residuals_test.png" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/scratch/residuals_test.png" width="100%">
+    </td>
+  </tr>
+</table>
 <p align="center"><sub>Рис. 3. Слева `zero-shot`, справа `scratch`: распределение остатков на test для `full`.</sub></p>
 
 Диагностика лучшей ветки `full / scratch`:
