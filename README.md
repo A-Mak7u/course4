@@ -197,29 +197,42 @@ Run: `outputs_runs/20260327_203205_volgograd_transfer_suite`
 
 Метрики test:
 
-| Режим target-train | `zero-shot` RMSE / MAE | `finetune` RMSE / MAE | `scratch` RMSE / MAE | Лучшая ветка |
-|---|---:|---:|---:|---:|
-| `full` | `1.3216 / 1.0186` | `0.8621 / 0.6539` | `0.8367 / 0.6353` | `scratch` |
-| `fewshot_5` | `1.3941 / 1.0377` | `0.9401 / 0.7121` | `0.8992 / 0.6895` | `scratch` |
-| `fewshot_3` | `1.3361 / 0.9790` | `0.8944 / 0.6827` | `0.8187 / 0.6263` | `scratch` |
+| Режим target-train | Ветка | R2 | RMSE | MAE | MedAE | n |
+|---|---|---:|---:|---:|---:|---:|
+| `full` | `zero-shot` | 0.9861 | 1.3216 | 1.0186 | 0.8103 | 8741 |
+| `full` | `finetune` | 0.9941 | 0.8621 | 0.6539 | 0.5148 | 8741 |
+| `full` | `scratch` | 0.9944 | 0.8367 | 0.6353 | 0.5015 | 8741 |
+| `fewshot_5` | `zero-shot` | 0.9844 | 1.3941 | 1.0377 | 0.7973 | 3642 |
+| `fewshot_5` | `finetune` | 0.9929 | 0.9401 | 0.7121 | 0.5659 | 3642 |
+| `fewshot_5` | `scratch` | 0.9935 | 0.8992 | 0.6895 | 0.5681 | 3642 |
+| `fewshot_3` | `zero-shot` | 0.9856 | 1.3361 | 0.9790 | 0.7470 | 2186 |
+| `fewshot_3` | `finetune` | 0.9936 | 0.8944 | 0.6827 | 0.5465 | 2186 |
+| `fewshot_3` | `scratch` | 0.9946 | 0.8187 | 0.6263 | 0.4987 | 2186 |
 
 <p align="center">
   <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/suite_rmse.png" width="760">
 </p>
+
+`full` как основное сравнение по второму региону:
+
+<p align="center">
+  <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/zero_shot/scatter_test.png" width="420">
+  <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/scratch/scatter_test.png" width="420">
+</p>
+
+<p align="center">
+  <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/zero_shot/residuals_test.png" width="420">
+  <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/scratch/residuals_test.png" width="420">
+</p>
+
+Диагностика лучшей ветки `full / scratch`:
+
+- худшие месяцы по `MAE`: январь `0.8214`, октябрь `0.7153`, март `0.7123`, апрель `0.6686`
+- худшие станции по `MAE`: `34476` `0.7890`, `34363` `0.7380`, `34357` `0.7070`, `34240` `0.7018`
+- подробные diagnostics сохранены в `full/scratch/metrics_by_month_test.csv` и `full/scratch/metrics_by_station_test.csv`
 
 Итог этапа:
 
 - перенос на второй регион подтверждён артефактами; даже `zero-shot` удерживает `R2 > 0.984` во всех трёх постановках
 - во всех подтверждённых случаях лучшим оказался `scratch`, `finetune` стабильно второй, `zero-shot` заметно слабее
 - `fewshot_3` нельзя трактовать как улучшение относительно `full`: это меньшая и более лёгкая подвыборка (`n = 2186` против `8741`)
-
----
-
-## 8. Сводка
-
-- Лучшая подтверждённая база на полном саратовском наборе станций: `xgb/xgb_optuna_with_lags123_spatial.py`, run `outputs_runs/20250916_171729_lags123_spatial`.
-- Ключевые факторы прироста: календарные и производные признаки, лаги `t-1..t-3`, spatial-блок, `station_train_mean_T`.
-- Улучшения без закрепления в основной ветке: seasonal split, post-bias, long-run, `ens5`.
-- Подтверждённые слабые места: зима, station-wise сдвиг, особенно станция `35108`, остаточная автокорреляция.
-- Подтверждённый transfer-preflight внутри текущего региона: `transfer/spatial_transfer_preflight.py`, run `outputs_runs/20260327_171818_spatial_transfer_preflight`.
-- Подтверждённый перенос на второй регион: `transfer/xgb_transfer_experiment.py`, run `outputs_runs/20260327_203205_volgograd_transfer_suite`; на Волгограде лучшим режимом оказался `scratch`, `finetune` уступил незначительно, `zero-shot` заметно слабее.
