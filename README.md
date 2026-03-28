@@ -178,10 +178,48 @@ Run: `outputs_runs/20260327_171818_spatial_transfer_preflight`
 
 ---
 
-## 7. Сводка
+## 7. Волгоград: перенос на второй регион
+
+Скрипты: `transfer/build_volgograd_*.py`, `transfer/xgb_transfer_experiment.py`, `transfer/wait_and_run_volgograd_suite.py`  
+Run: `outputs_runs/20260327_203205_volgograd_transfer_suite`
+
+Сборка target-dataset:
+
+- исходный target собран за `2013-2023` по `13` станциям
+- после склейки `Meteostat + ERA5 + MODIS` финальный CSV содержит `34700` строк и `12` станций: `data/volgograd/processed/volgograd_final_2013_2023_T_ERA5_LST_daynight.csv`
+- одна станция выпала из финального merge из-за отсутствия пригодного `MODIS`-покрытия
+
+Постановка transfer:
+
+- `zero-shot`: обучение на саратовском датасете и прямое применение к Волгограду без переобучения
+- `finetune`: старт из саратовской модели с последующей адаптацией на Волгограде
+- `scratch`: обучение на Волгограде с нуля без переноса весов
+
+Метрики test:
+
+| Режим target-train | `zero-shot` RMSE / MAE | `finetune` RMSE / MAE | `scratch` RMSE / MAE | Лучшая ветка |
+|---|---:|---:|---:|---:|
+| `full` | `1.3216 / 1.0186` | `0.8621 / 0.6539` | `0.8367 / 0.6353` | `scratch` |
+| `fewshot_5` | `1.3941 / 1.0377` | `0.9401 / 0.7121` | `0.8992 / 0.6895` | `scratch` |
+| `fewshot_3` | `1.3361 / 0.9790` | `0.8944 / 0.6827` | `0.8187 / 0.6263` | `scratch` |
+
+<p align="center">
+  <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/suite_rmse.png" width="760">
+</p>
+
+Итог этапа:
+
+- перенос на второй регион подтверждён артефактами; даже `zero-shot` удерживает `R2 > 0.984` во всех трёх постановках
+- во всех подтверждённых случаях лучшим оказался `scratch`, `finetune` стабильно второй, `zero-shot` заметно слабее
+- `fewshot_3` нельзя трактовать как улучшение относительно `full`: это меньшая и более лёгкая подвыборка (`n = 2186` против `8741`)
+
+---
+
+## 8. Сводка
 
 - Лучшая подтверждённая база на полном саратовском наборе станций: `xgb/xgb_optuna_with_lags123_spatial.py`, run `outputs_runs/20250916_171729_lags123_spatial`.
 - Ключевые факторы прироста: календарные и производные признаки, лаги `t-1..t-3`, spatial-блок, `station_train_mean_T`.
 - Улучшения без закрепления в основной ветке: seasonal split, post-bias, long-run, `ens5`.
 - Подтверждённые слабые места: зима, station-wise сдвиг, особенно станция `35108`, остаточная автокорреляция.
 - Подтверждённый transfer-preflight внутри текущего региона: `transfer/spatial_transfer_preflight.py`, run `outputs_runs/20260327_171818_spatial_transfer_preflight`.
+- Подтверждённый перенос на второй регион: `transfer/xgb_transfer_experiment.py`, run `outputs_runs/20260327_203205_volgograd_transfer_suite`; на Волгограде лучшим режимом оказался `scratch`, `finetune` уступил незначительно, `zero-shot` заметно слабее.

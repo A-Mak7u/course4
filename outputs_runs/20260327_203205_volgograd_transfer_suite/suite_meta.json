@@ -1,0 +1,12 @@
+{
+  "generated_at": "2026-03-28T11:29:42.330523",
+  "best_case": "fewshot_3",
+  "best_mode": "scratch",
+  "best_rmse": 0.8186517787850612,
+  "best_mae": 0.6263467102452145,
+  "cases": [
+    "full",
+    "fewshot_5",
+    "fewshot_3"
+  ]
+}

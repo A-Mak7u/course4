@@ -141,6 +141,14 @@ def build_suite_summary(output_root: Path, cases: list[tuple[str, Path]]) -> Non
         raise RuntimeError("Не удалось собрать suite_summary.csv: summary_metrics.csv не найдены")
 
     summary = pd.DataFrame(rows)
+    summary = summary.rename(
+        columns={
+            "R2": "r2",
+            "RMSE": "rmse",
+            "MAE": "mae",
+            "MedAE": "medae",
+        }
+    )
     summary_csv = output_root / "suite_summary.csv"
     summary.to_csv(summary_csv, index=False)
 

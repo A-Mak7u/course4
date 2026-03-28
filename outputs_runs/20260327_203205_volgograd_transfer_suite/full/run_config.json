@@ -1,0 +1,27 @@
+{
+  "source_csv": "/home/maks/Documents/course4/final_2013_2023_T_ERA5_LST_daynight.csv",
+  "target_csv": "/home/maks/Documents/course4/data/volgograd/processed/volgograd_final_2013_2023_T_ERA5_LST_daynight.csv",
+  "modes": [
+    "zero-shot",
+    "finetune",
+    "scratch"
+  ],
+  "train_years": [
+    2013,
+    2021
+  ],
+  "test_years": [
+    2022,
+    2023
+  ],
+  "target_max_stations": null,
+  "zero_inflated_precip": false,
+  "winter_only": false,
+  "device": "cuda",
+  "n_trials": 20,
+  "num_boost_round": 3000,
+  "early_stopping_rounds": 150,
+  "seed": 42,
+  "source_rows": 208278,
+  "target_rows": 34700
+}

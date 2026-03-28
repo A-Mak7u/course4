@@ -31,6 +31,13 @@ outputs_runs/**/xgb_model.json
 outputs_runs/**/xgb_model.ubj
 outputs_runs/**/model.json
 outputs_runs/**/model_*.json
+outputs_runs/**/density_*.png
+outputs_runs/**/scatter_*.png
+outputs_runs/**/residuals_*.png
+outputs_runs/**/metrics_*.json
+outputs_runs/**/metrics_by_*.csv
+outputs_runs/**/features_used.json
+outputs_runs/**/params.json
 *.pkl
 *.joblib
 *.onnx
