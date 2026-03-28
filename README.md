@@ -194,6 +194,10 @@ Run: `outputs_runs/20260327_203205_volgograd_transfer_suite`
 - `zero-shot`: обучение на саратовском датасете и прямое применение к Волгограду без переобучения
 - `finetune`: старт из саратовской модели с последующей адаптацией на Волгограде
 - `scratch`: обучение на Волгограде с нуля без переноса весов
+- `full`: в target-train доступны все волгоградские станции с наблюдаемой `T`
+- `fewshot_5` и `fewshot_3`: в target-train оставлены только `5` или `3` калибровочные станции
+- калибровочные станции: станции нового региона, по которым модель видит реальную `T` и может подстроиться под локальное смещение
+- три прогона нужны, чтобы отдельно проверить полный перенос, перенос при малом числе станций и нижнюю границу few-shot-адаптации
 
 Метрики test:
 
@@ -212,6 +216,7 @@ Run: `outputs_runs/20260327_203205_volgograd_transfer_suite`
 <p align="center">
   <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/suite_rmse.png" width="760">
 </p>
+<p align="center"><sub>Рис. 1. RMSE по трём режимам переноса и трём вариантам target-train.</sub></p>
 
 `full` как основное сравнение по второму региону:
 
@@ -219,17 +224,18 @@ Run: `outputs_runs/20260327_203205_volgograd_transfer_suite`
   <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/zero_shot/scatter_test.png" width="420">
   <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/scratch/scatter_test.png" width="420">
 </p>
+<p align="center"><sub>Рис. 2. Слева `zero-shot`, справа `scratch`: зависимость прогноза от истинной температуры на test для `full`.</sub></p>
 
 <p align="center">
   <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/zero_shot/residuals_test.png" width="420">
   <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/scratch/residuals_test.png" width="420">
 </p>
+<p align="center"><sub>Рис. 3. Слева `zero-shot`, справа `scratch`: распределение остатков на test для `full`.</sub></p>
 
 Диагностика лучшей ветки `full / scratch`:
 
 - худшие месяцы по `MAE`: январь `0.8214`, октябрь `0.7153`, март `0.7123`, апрель `0.6686`
 - худшие станции по `MAE`: `34476` `0.7890`, `34363` `0.7380`, `34357` `0.7070`, `34240` `0.7018`
-- подробные diagnostics сохранены в `full/scratch/metrics_by_month_test.csv` и `full/scratch/metrics_by_station_test.csv`
 
 Итог этапа:
 
