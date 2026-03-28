@@ -111,6 +111,10 @@ def main() -> None:
     ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
     outdir = args.output_dir or f"outputs_runs/{ts}_transfer_region"
     Path(outdir).mkdir(parents=True, exist_ok=True)
+    print(
+        f"[transfer] start outdir={outdir} modes={args.modes} target_max_stations={args.target_max_stations} device={args.device} n_trials={args.n_trials}",
+        flush=True,
+    )
 
     source_df, _, source_splits, source_features = prepare_dataset(
         args.source_csv,
@@ -151,6 +155,10 @@ def main() -> None:
     common_nominal_features = sorted(set(source_features).intersection(target_features_nom))
     if not common_nominal_features:
         raise RuntimeError("Нет общих признаков между source и target для zero-shot/finetune")
+    print(
+        f"[transfer] prepared source_rows={len(source_df)} target_rows={len(target_df)} nominal_features={len(common_nominal_features)} target_features_mean={len(target_features_mean)}",
+        flush=True,
+    )
 
     source_params = tune_xgb(
         source_splits["inner_train"],
@@ -161,6 +169,7 @@ def main() -> None:
         num_boost_round=args.num_boost_round,
         early_stopping_rounds=args.early_stopping_rounds,
         seed=args.seed,
+        progress_label="source_tune",
     )
     source_model = train_xgb(
         source_splits["train"],
@@ -169,12 +178,14 @@ def main() -> None:
         source_params,
         num_boost_round=args.num_boost_round,
         early_stopping_rounds=args.early_stopping_rounds,
-        verbose_eval=False,
+        verbose_eval=100,
+        progress_label="source_train",
     )
 
     summary_rows: list[dict[str, float | int | str]] = []
 
     if "zero-shot" in args.modes:
+        print("[transfer] mode=zero-shot start", flush=True)
         zero_preds_test, zero_metrics_test = evaluate_model(source_model, target_splits_nom["test"], common_nominal_features)
         zero_preds_full, zero_metrics_full = evaluate_model(source_model, target_splits_nom["full"], common_nominal_features)
         mode_outdir = Path(outdir) / "zero_shot"
@@ -190,8 +201,10 @@ def main() -> None:
             station_col=target_station_col,
         )
         summary_rows.append({"mode": "zero-shot", **zero_metrics_test})
+        print(f"[transfer] mode=zero-shot done test_metrics={zero_metrics_test}", flush=True)
 
     if "scratch" in args.modes:
+        print("[transfer] mode=scratch start", flush=True)
         scratch_params = tune_xgb(
             target_splits_mean["inner_train"],
             target_splits_mean["inner_val"],
@@ -201,6 +214,7 @@ def main() -> None:
             num_boost_round=args.num_boost_round,
             early_stopping_rounds=args.early_stopping_rounds,
             seed=args.seed,
+            progress_label="scratch_tune",
         )
         scratch_model = train_xgb(
             target_splits_mean["train"],
@@ -209,7 +223,8 @@ def main() -> None:
             scratch_params,
             num_boost_round=args.num_boost_round,
             early_stopping_rounds=args.early_stopping_rounds,
-            verbose_eval=False,
+            verbose_eval=100,
+            progress_label="scratch_train",
         )
         scratch_preds_train, scratch_metrics_train = evaluate_model(scratch_model, target_splits_mean["train"], target_features_mean)
         scratch_preds_test, scratch_metrics_test = evaluate_model(scratch_model, target_splits_mean["test"], target_features_mean)
@@ -229,8 +244,10 @@ def main() -> None:
             station_col=target_station_col,
         )
         summary_rows.append({"mode": "scratch", **scratch_metrics_test})
+        print(f"[transfer] mode=scratch done test_metrics={scratch_metrics_test}", flush=True)
 
     if "finetune" in args.modes:
+        print("[transfer] mode=finetune start", flush=True)
         finetune_params = dict(source_params)
         finetune_params["learning_rate"] = min(float(source_params["learning_rate"]), 0.03)
         finetune_model = train_xgb(
@@ -241,7 +258,8 @@ def main() -> None:
             num_boost_round=max(800, args.num_boost_round // 2),
             early_stopping_rounds=max(50, args.early_stopping_rounds // 2),
             base_model=source_model,
-            verbose_eval=False,
+            verbose_eval=50,
+            progress_label="finetune_train",
         )
         finetune_preds_test, finetune_metrics_test = evaluate_model(finetune_model, target_splits_nom["test"], common_nominal_features)
         finetune_preds_full, finetune_metrics_full = evaluate_model(finetune_model, target_splits_nom["full"], common_nominal_features)
@@ -259,6 +277,7 @@ def main() -> None:
             station_col=target_station_col,
         )
         summary_rows.append({"mode": "finetune", **finetune_metrics_test})
+        print(f"[transfer] mode=finetune done test_metrics={finetune_metrics_test}", flush=True)
 
     pd.DataFrame(summary_rows).to_csv(Path(outdir) / "summary_metrics.csv", index=False)
     save_json(
@@ -281,6 +300,7 @@ def main() -> None:
             "target_rows": int(len(target_df)),
         },
     )
+    print(f"[transfer] summary_rows={summary_rows}", flush=True)
     print(f"Saved transfer run: {outdir}")
 
 

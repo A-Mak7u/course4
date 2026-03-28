@@ -340,11 +340,18 @@ def tune_xgb(
     seed: int = 42,
     learning_rate_low: float = 0.005,
     learning_rate_high: float = 0.10,
+    progress_label: str | None = None,
 ) -> dict[str, float | int]:
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     study = optuna.create_study(direction="maximize")
     dtrain = make_dmatrix(train_df, features, target_col=target_col)
     dval = make_dmatrix(val_df, features, target_col=target_col)
+    label = progress_label or "tune"
+
+    print(
+        f"[optuna] {label}: start n_trials={n_trials} train_rows={len(train_df)} val_rows={len(val_df)} features={len(features)}",
+        flush=True,
+    )
 
     def objective(trial: optuna.Trial) -> float:
         params = {
@@ -369,11 +376,18 @@ def tune_xgb(
             verbose_eval=False,
         )
         pred = model.predict(dval)
-        return r2_score(val_df[target_col], pred)
+        score = r2_score(val_df[target_col], pred)
+        best_iteration = getattr(model, "best_iteration", None)
+        print(
+            f"[optuna] {label}: trial {trial.number + 1}/{n_trials} r2={score:.6f} best_iter={best_iteration}",
+            flush=True,
+        )
+        return score
 
     study.optimize(objective, n_trials=n_trials)
     best_params = dict(study.best_params)
     best_params.update({"objective": "reg:squarederror", "tree_method": "hist", "device": device, "seed": seed})
+    print(f"[optuna] {label}: done best_value={study.best_value:.6f} best_params={best_params}", flush=True)
     return best_params
 
 
@@ -388,18 +402,32 @@ def train_xgb(
     early_stopping_rounds: int = 150,
     base_model: xgb.Booster | str | None = None,
     verbose_eval: bool | int = False,
+    progress_label: str | None = None,
 ) -> xgb.Booster:
     dtrain = make_dmatrix(train_df, features, target_col=target_col)
     dval = make_dmatrix(val_df, features, target_col=target_col)
-    return xgb.train(
+    label = progress_label or "train"
+    resolved_verbose_eval = verbose_eval
+    if resolved_verbose_eval is False and progress_label is not None:
+        resolved_verbose_eval = 100
+
+    print(
+        f"[xgb] {label}: start train_rows={len(train_df)} val_rows={len(val_df)} features={len(features)} num_boost_round={num_boost_round} early_stopping_rounds={early_stopping_rounds}",
+        flush=True,
+    )
+    model = xgb.train(
         params,
         dtrain,
         num_boost_round=num_boost_round,
         evals=[(dval, "val")],
         early_stopping_rounds=early_stopping_rounds,
         xgb_model=base_model,
-        verbose_eval=verbose_eval,
+        verbose_eval=resolved_verbose_eval,
     )
+    best_iteration = getattr(model, "best_iteration", None)
+    best_score = getattr(model, "best_score", None)
+    print(f"[xgb] {label}: done best_iteration={best_iteration} best_score={best_score}", flush=True)
+    return model
 
 
 def evaluate_model(
