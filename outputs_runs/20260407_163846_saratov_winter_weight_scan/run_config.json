@@ -1,0 +1,20 @@
+{
+  "csv": "final_2013_2023_T_ERA5_LST_daynight.csv",
+  "params_json": "outputs_runs/20260407_163025_saratov_winter_hybrid/params_full.json",
+  "train_start_year": 2013,
+  "train_end_year": 2021,
+  "test_start_year": 2022,
+  "test_end_year": 2023,
+  "num_boost_round": 3000,
+  "early_stopping_rounds": 150,
+  "factors": [
+    1.0,
+    1.15,
+    1.3,
+    1.5,
+    1.8,
+    2.2
+  ],
+  "zero_inflated_precip": false,
+  "output_dir": null
+}

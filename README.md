@@ -278,6 +278,29 @@ Run: `outputs_runs/20260407_163025_saratov_winter_hybrid`
 
 Итог этапа: раздельная winter-ветка в текущей реализации не улучшила качество ни на зимнем срезе, ни на полном test; базовая full-year модель остаётся сильнее.
 
+### 7.5 Winter weight scan (одна модель, взвешивание зимы)
+
+Скрипт: `transfer/saratov_winter_weight_scan.py`  
+Run: `outputs_runs/20260407_163846_saratov_winter_weight_scan`
+
+Постановка:
+
+- обучалась одна full-year модель на `2013-2021`
+- зимним наблюдениям (`11,12,1,2,3`) в train назначался вес `factor`
+- проверены `factor = 1.0 / 1.15 / 1.3 / 1.5 / 1.8 / 2.2`
+
+Ключевые результаты (`2022-2023`):
+
+- baseline `factor=1.0`: `RMSE_full=1.1450`, `MAE_full=0.7094`, `RMSE_winter=1.3588`, `MAE_winter=0.8065`
+- лучший по full-RMSE (`factor=1.3`): `RMSE_full=1.1450`, `MAE_full=0.7066`, `RMSE_winter=1.3574`, `MAE_winter=0.8008`
+- лучший по winter-RMSE (`factor=1.5`): `RMSE_full=1.1457`, `MAE_full=0.7083`, `RMSE_winter=1.3565`, `MAE_winter=0.8031`
+
+<p align="center">
+  <img src="outputs_runs/20260407_163846_saratov_winter_weight_scan/rmse_scan.png" width="760">
+</p>
+
+Итог этапа: умеренное взвешивание зимних месяцев (`factor ~ 1.3-1.5`) даёт небольшой, но реальный прирост на зимнем срезе без заметной потери общего качества.
+
 ---
 
 ## 8. Волгоград: перенос на второй регион
