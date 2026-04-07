@@ -181,7 +181,100 @@ Run: `outputs_runs/20260327_171818_spatial_transfer_preflight`
 
 ---
 
-## 7. Волгоград: перенос на второй регион
+## 7. Проверки устойчивости до следующего регионального шага
+
+### 7.1 Winter transfer (мульти-сид)
+
+Скрипт: `transfer/run_winter_transfer_multiseed.py`  
+Run: `outputs_runs/20260407_003000_volgograd_winter_multiseed_quick`
+
+Постановка:
+
+- winter-only выборка (`11,12,1,2,3`)
+- перенос `Saratov -> Volgograd`
+- `3` сида (`42/52/62`) в режимах `zero-shot`, `finetune`, `scratch`
+
+Агрегированные test-метрики по сидам:
+
+| Ветка | R2 mean ± std | RMSE mean ± std | MAE mean ± std | n |
+|---|---:|---:|---:|---:|
+| `scratch` | 0.9759 ± 0.0004 | 0.9342 ± 0.0082 | 0.6741 ± 0.0066 | 3624 |
+| `finetune` | 0.9750 ± 0.0003 | 0.9519 ± 0.0061 | 0.6925 ± 0.0060 | 3624 |
+| `zero-shot` | 0.9438 ± 0.0016 | 1.4280 ± 0.0209 | 1.0070 ± 0.0089 | 3624 |
+
+<p align="center">
+  <img src="outputs_runs/20260407_003000_volgograd_winter_multiseed_quick/rmse_by_seed.png" width="760">
+</p>
+
+Итог этапа: зимний ranking устойчив по сидам и не меняет общий вывод transfer-ветки: `scratch` лучше `finetune`, `zero-shot` заметно слабее.
+
+### 7.2 LOSO stress-test по станциям (Саратов)
+
+Скрипт: `transfer/saratov_loso_stress.py`  
+Run: `outputs_runs/20260407_004000_saratov_loso_quick12`
+
+Постановка:
+
+- `leave-one-station-out` на подмножестве из `12` станций (test `2022-2023`)
+- обучение на остальных станциях тем же базовым feature-набором
+
+Сводные метрики:
+
+- `RMSE_mean = 1.0974`
+- `RMSE_median = 0.8316`
+- `MAE_mean = 0.8386`
+- худшая станция: `35108`, `RMSE = 3.9920`
+- лучшая станция: `34059`, `RMSE = 0.6923`
+
+<p align="center">
+  <img src="outputs_runs/20260407_004000_saratov_loso_quick12/rmse_by_station_loso.png" width="760">
+</p>
+
+Итог этапа: station-wise неустойчивость подтверждена в более жёсткой постановке с unseen station; основной хвост ошибки остаётся на `35108`.
+
+### 7.3 Интервалы неопределённости (P10/P50/P90)
+
+Скрипт: `transfer/saratov_uncertainty_intervals.py`  
+Run: `outputs_runs/20260407_004800_saratov_uncertainty_quick`
+
+Сводные test-метрики интервалов:
+
+- `coverage(P10,P90) = 0.7044`
+- целевой coverage: `0.80`
+- `coverage_gap = -0.0956`
+- средняя ширина интервала: `2.0012`
+- `P50`: `MAE = 0.7116`, `RMSE = 1.1469`
+
+<p align="center">
+  <img src="outputs_runs/20260407_004800_saratov_uncertainty_quick/coverage_by_month_test.png" width="430">
+  <img src="outputs_runs/20260407_004800_saratov_uncertainty_quick/interval_width_hist_test.png" width="430">
+</p>
+
+Итог этапа: интервалы пока недокрывают фактическую неопределённость (coverage ниже цели), особенно по отдельным месяцам; это зафиксированная зона доработки.
+
+### 7.4 Готовность моста `RP5 -> Росгидромет`
+
+Скрипт: `transfer/rp5_hydromet_bridge.py`  
+Schema smoke run: `outputs_runs/20260407_005500_bridge_schema_smoke`
+
+Что добавлено в bridge-код:
+
+- `--adapter-json` для маппинга входных колонок
+- `--schema-only` для dry-run проверки схемы без обучения
+- `--strict-schema` для жёсткой валидации дат/чисел
+
+Smoke-проверка на текущем формате:
+
+- `rows_before_validation = 208278`
+- `rows_after_validation = 47476`
+- `stations_after_validation = 13`
+- диапазон дат после валидации: `2014-01-01 ... 2023-12-31`
+
+Итог этапа: bridge-пайплайн подготовлен к приёму внешнего официального CSV, включая отдельный этап строгой схемной проверки до обучения.
+
+---
+
+## 8. Волгоград: перенос на второй регион
 
 Скрипты: `transfer/build_volgograd_*.py`, `transfer/xgb_transfer_experiment.py`, `transfer/wait_and_run_volgograd_suite.py`  
 Run: `outputs_runs/20260327_203205_volgograd_transfer_suite`
