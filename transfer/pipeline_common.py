@@ -236,8 +236,13 @@ def limit_to_station_subset(df: pd.DataFrame, station_col: str, max_stations: in
     return df[df[station_col].isin(keep)].copy()
 
 
-def make_dmatrix(df: pd.DataFrame, features: Sequence[str], target_col: str = TARGET_COLUMN) -> xgb.DMatrix:
-    return xgb.DMatrix(df[features], label=df[target_col])
+def make_dmatrix(
+    df: pd.DataFrame,
+    features: Sequence[str],
+    target_col: str = TARGET_COLUMN,
+    weights: Sequence[float] | np.ndarray | None = None,
+) -> xgb.DMatrix:
+    return xgb.DMatrix(df[features], label=df[target_col], weight=weights)
 
 
 def compute_metrics(y_true: Sequence[float], y_pred: Sequence[float]) -> dict[str, float | int]:
@@ -341,11 +346,13 @@ def tune_xgb(
     learning_rate_low: float = 0.005,
     learning_rate_high: float = 0.10,
     progress_label: str | None = None,
+    train_weights: Sequence[float] | np.ndarray | None = None,
+    val_weights: Sequence[float] | np.ndarray | None = None,
 ) -> dict[str, float | int]:
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     study = optuna.create_study(direction="maximize")
-    dtrain = make_dmatrix(train_df, features, target_col=target_col)
-    dval = make_dmatrix(val_df, features, target_col=target_col)
+    dtrain = make_dmatrix(train_df, features, target_col=target_col, weights=train_weights)
+    dval = make_dmatrix(val_df, features, target_col=target_col, weights=val_weights)
     label = progress_label or "tune"
 
     print(
@@ -403,9 +410,11 @@ def train_xgb(
     base_model: xgb.Booster | str | None = None,
     verbose_eval: bool | int = False,
     progress_label: str | None = None,
+    train_weights: Sequence[float] | np.ndarray | None = None,
+    val_weights: Sequence[float] | np.ndarray | None = None,
 ) -> xgb.Booster:
-    dtrain = make_dmatrix(train_df, features, target_col=target_col)
-    dval = make_dmatrix(val_df, features, target_col=target_col)
+    dtrain = make_dmatrix(train_df, features, target_col=target_col, weights=train_weights)
+    dval = make_dmatrix(val_df, features, target_col=target_col, weights=val_weights)
     label = progress_label or "train"
     resolved_verbose_eval = verbose_eval
     if resolved_verbose_eval is False and progress_label is not None:

@@ -1,0 +1,4 @@
+direction,target_station_count,source_region,target_region,requested_target_stations,mode,R2,RMSE,MAE,MedAE,n,run_dir
+west_to_east,3,west,east,3,finetune+bias[station_month],0.9800664430078576,1.7326314095927362,1.0162367991514203,0.6187073159219176,5110,outputs_runs/20260407_191500_spatial_transfer_w2e_stationmonth_w10/west_to_east__fewtrain03
+west_to_east,5,west,east,5,scratch,0.9807051073231148,1.7046489907096083,0.9951469105237152,0.5869822502136226,5110,outputs_runs/20260407_191500_spatial_transfer_w2e_stationmonth_w10/west_to_east__fewtrain05
+west_to_east,26,west,east,26,scratch+bias[station_month],0.9858585668582892,1.4593534674743298,0.8736236054171462,0.5538487175516473,5110,outputs_runs/20260407_191500_spatial_transfer_w2e_stationmonth_w10/west_to_east__all

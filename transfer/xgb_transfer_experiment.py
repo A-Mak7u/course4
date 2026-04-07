@@ -11,6 +11,7 @@ from pipeline_common import (
     TARGET_COLUMN,
     build_feature_frame,
     choose_validation_year,
+    compute_metrics,
     evaluate_model,
     filter_winter,
     limit_to_station_subset,
@@ -22,6 +23,8 @@ from pipeline_common import (
     train_xgb,
     tune_xgb,
 )
+
+WINTER_MONTHS = (11, 12, 1, 2, 3)
 
 
 def make_parser() -> argparse.ArgumentParser:
@@ -43,9 +46,21 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output-dir", default=None)
     parser.add_argument(
+        "--winter-weight-factor",
+        type=float,
+        default=1.0,
+        help="Вес зимних наблюдений в train (месяцы 11,12,1,2,3)",
+    )
+    parser.add_argument(
         "--post-bias-correction",
         action="store_true",
-        help="Применить station-bias correction по residual на target-train",
+        help="Применить post-bias correction по residual на target-train",
+    )
+    parser.add_argument(
+        "--post-bias-correction-mode",
+        choices=["station", "station_month"],
+        default="station",
+        help="Вариант bias correction (по станции или станции+месяцу)",
     )
     return parser
 
@@ -64,7 +79,7 @@ def prepare_dataset(
     seed: int = 42,
 ) -> tuple[pd.DataFrame, str, dict[str, pd.DataFrame], list[str]]:
     df, meta = load_dataset(csv_path)
-    train_mask, test_mask = split_by_year(
+    train_mask, _ = split_by_year(
         df.assign(year=pd.to_datetime(df[meta.date_col]).dt.year),
         train_start_year=train_start_year,
         train_end_year=train_end_year,
@@ -110,6 +125,69 @@ def prepare_dataset(
         "full": df.dropna(subset=[TARGET_COLUMN]).copy(),
     }
     return df, meta.station_col, splits, features
+
+
+def build_winter_weights(df: pd.DataFrame, factor: float) -> np.ndarray | None:
+    if factor <= 1.0:
+        return None
+    if "month" not in df.columns:
+        return None
+    weights = np.ones(len(df), dtype=float)
+    winter_mask = df["month"].isin(WINTER_MONTHS).to_numpy()
+    weights[winter_mask] = float(factor)
+    return weights
+
+
+def compute_bias_payload(
+    train_df: pd.DataFrame,
+    preds_train: np.ndarray,
+    station_col: str,
+    mode: str,
+) -> dict[str, object]:
+    resid = train_df[TARGET_COLUMN].to_numpy() - preds_train
+    bias_df = pd.DataFrame(
+        {
+            station_col: train_df[station_col].to_numpy(),
+            "month": train_df["month"].to_numpy() if "month" in train_df.columns else -1,
+            "resid": resid,
+        }
+    )
+    station_bias = bias_df.groupby(station_col)["resid"].mean()
+    payload: dict[str, object] = {
+        "mode": mode,
+        "global_bias": float(np.mean(resid)),
+        "station_bias": station_bias,
+        "station_bias_count": int(len(station_bias)),
+    }
+    if mode == "station_month":
+        station_month_bias = bias_df.groupby([station_col, "month"])["resid"].mean()
+        payload["station_month_bias"] = station_month_bias
+        payload["station_month_bias_count"] = int(len(station_month_bias))
+    return payload
+
+
+def apply_bias_payload(
+    df: pd.DataFrame,
+    preds: np.ndarray,
+    station_col: str,
+    payload: dict[str, object],
+) -> np.ndarray:
+    global_bias = float(payload["global_bias"])
+    station_bias = payload["station_bias"]  # type: ignore[assignment]
+    station_add = df[station_col].map(station_bias).fillna(global_bias).to_numpy(dtype=float)
+
+    if str(payload["mode"]) == "station_month":
+        station_month_bias = payload["station_month_bias"]  # type: ignore[assignment]
+        month_values = df["month"].to_numpy() if "month" in df.columns else np.full(len(df), -1)
+        month_add = np.array(
+            [
+                station_month_bias.get((s, m), np.nan)  # type: ignore[attr-defined]
+                for s, m in zip(df[station_col].to_numpy(), month_values)
+            ],
+            dtype=float,
+        )
+        station_add = np.where(np.isnan(month_add), station_add, month_add)
+    return preds + station_add
 
 
 def main() -> None:
@@ -176,6 +254,7 @@ def main() -> None:
         early_stopping_rounds=args.early_stopping_rounds,
         seed=args.seed,
         progress_label="source_tune",
+        train_weights=build_winter_weights(source_splits["inner_train"], args.winter_weight_factor),
     )
     source_model = train_xgb(
         source_splits["train"],
@@ -186,31 +265,11 @@ def main() -> None:
         early_stopping_rounds=args.early_stopping_rounds,
         verbose_eval=100,
         progress_label="source_train",
+        train_weights=build_winter_weights(source_splits["train"], args.winter_weight_factor),
     )
 
     summary_rows: list[dict[str, float | int | str]] = []
     summary_rows_bias: list[dict[str, float | int | str]] = []
-
-    def compute_station_bias(
-        train_df: pd.DataFrame,
-        preds_train: np.ndarray,
-        station_col: str,
-    ) -> tuple[pd.Series, float]:
-        resid = train_df[TARGET_COLUMN].to_numpy() - preds_train
-        bias_df = pd.DataFrame({station_col: train_df[station_col].to_numpy(), "resid": resid})
-        bias_map = bias_df.groupby(station_col)["resid"].mean()
-        global_bias = float(np.mean(resid))
-        return bias_map, global_bias
-
-    def apply_station_bias(
-        df: pd.DataFrame,
-        preds: np.ndarray,
-        station_col: str,
-        bias_map: pd.Series,
-        global_bias: float,
-    ) -> np.ndarray:
-        station_bias = df[station_col].map(bias_map).fillna(global_bias).to_numpy(dtype=float)
-        return preds + station_bias
 
     if "zero-shot" in args.modes:
         print("[transfer] mode=zero-shot start", flush=True)
@@ -231,29 +290,36 @@ def main() -> None:
             station_col=target_station_col,
         )
         summary_rows.append({"mode": "zero-shot", **zero_metrics_test})
+
         if args.post_bias_correction:
-            bias_map, global_bias = compute_station_bias(target_splits_nom["train"], zero_preds_train, target_station_col)
-            zero_preds_test_bias = apply_station_bias(
+            bias_payload = compute_bias_payload(
+                target_splits_nom["train"],
+                zero_preds_train,
+                target_station_col,
+                mode=args.post_bias_correction_mode,
+            )
+            zero_preds_test_bias = apply_bias_payload(
                 target_splits_nom["test"],
                 zero_preds_test,
                 target_station_col,
-                bias_map,
-                global_bias,
+                bias_payload,
             )
-            _, zero_metrics_test_bias = zero_preds_test_bias, {
-                "R2": float(np.nan),
-                "RMSE": float(np.nan),
-                "MAE": float(np.nan),
-                "MedAE": float(np.nan),
-                "n": int(len(zero_preds_test_bias)),
-            }
-            from pipeline_common import compute_metrics
-
             zero_metrics_test_bias = compute_metrics(target_splits_nom["test"][TARGET_COLUMN], zero_preds_test_bias)
-            summary_rows_bias.append({"mode": "zero-shot", **zero_metrics_test_bias})
+            summary_rows_bias.append(
+                {
+                    "mode": "zero-shot",
+                    "bias_variant": str(bias_payload["mode"]),
+                    **zero_metrics_test_bias,
+                }
+            )
             save_json(
                 mode_outdir / "bias_correction_meta.json",
-                {"global_bias": global_bias, "station_bias_count": int(len(bias_map))},
+                {
+                    "mode": str(bias_payload["mode"]),
+                    "global_bias": float(bias_payload["global_bias"]),
+                    "station_bias_count": int(bias_payload["station_bias_count"]),
+                    "station_month_bias_count": int(bias_payload.get("station_month_bias_count", 0)),
+                },
             )
             save_json(mode_outdir / "metrics_test_bias_corrected.json", zero_metrics_test_bias)
         print(f"[transfer] mode=zero-shot done test_metrics={zero_metrics_test}", flush=True)
@@ -270,6 +336,7 @@ def main() -> None:
             early_stopping_rounds=args.early_stopping_rounds,
             seed=args.seed,
             progress_label="scratch_tune",
+            train_weights=build_winter_weights(target_splits_mean["inner_train"], args.winter_weight_factor),
         )
         scratch_model = train_xgb(
             target_splits_mean["train"],
@@ -280,6 +347,7 @@ def main() -> None:
             early_stopping_rounds=args.early_stopping_rounds,
             verbose_eval=100,
             progress_label="scratch_train",
+            train_weights=build_winter_weights(target_splits_mean["train"], args.winter_weight_factor),
         )
         scratch_preds_train, scratch_metrics_train = evaluate_model(scratch_model, target_splits_mean["train"], target_features_mean)
         scratch_preds_test, scratch_metrics_test = evaluate_model(scratch_model, target_splits_mean["test"], target_features_mean)
@@ -299,22 +367,36 @@ def main() -> None:
             station_col=target_station_col,
         )
         summary_rows.append({"mode": "scratch", **scratch_metrics_test})
+
         if args.post_bias_correction:
-            bias_map, global_bias = compute_station_bias(target_splits_mean["train"], scratch_preds_train, target_station_col)
-            scratch_preds_test_bias = apply_station_bias(
+            bias_payload = compute_bias_payload(
+                target_splits_mean["train"],
+                scratch_preds_train,
+                target_station_col,
+                mode=args.post_bias_correction_mode,
+            )
+            scratch_preds_test_bias = apply_bias_payload(
                 target_splits_mean["test"],
                 scratch_preds_test,
                 target_station_col,
-                bias_map,
-                global_bias,
+                bias_payload,
             )
-            from pipeline_common import compute_metrics
-
             scratch_metrics_test_bias = compute_metrics(target_splits_mean["test"][TARGET_COLUMN], scratch_preds_test_bias)
-            summary_rows_bias.append({"mode": "scratch", **scratch_metrics_test_bias})
+            summary_rows_bias.append(
+                {
+                    "mode": "scratch",
+                    "bias_variant": str(bias_payload["mode"]),
+                    **scratch_metrics_test_bias,
+                }
+            )
             save_json(
                 mode_outdir / "bias_correction_meta.json",
-                {"global_bias": global_bias, "station_bias_count": int(len(bias_map))},
+                {
+                    "mode": str(bias_payload["mode"]),
+                    "global_bias": float(bias_payload["global_bias"]),
+                    "station_bias_count": int(bias_payload["station_bias_count"]),
+                    "station_month_bias_count": int(bias_payload.get("station_month_bias_count", 0)),
+                },
             )
             save_json(mode_outdir / "metrics_test_bias_corrected.json", scratch_metrics_test_bias)
         print(f"[transfer] mode=scratch done test_metrics={scratch_metrics_test}", flush=True)
@@ -333,6 +415,7 @@ def main() -> None:
             base_model=source_model,
             verbose_eval=50,
             progress_label="finetune_train",
+            train_weights=build_winter_weights(target_splits_nom["train"], args.winter_weight_factor),
         )
         finetune_preds_train, finetune_metrics_train = evaluate_model(
             finetune_model, target_splits_nom["train"], common_nominal_features
@@ -354,22 +437,36 @@ def main() -> None:
             station_col=target_station_col,
         )
         summary_rows.append({"mode": "finetune", **finetune_metrics_test})
+
         if args.post_bias_correction:
-            bias_map, global_bias = compute_station_bias(target_splits_nom["train"], finetune_preds_train, target_station_col)
-            finetune_preds_test_bias = apply_station_bias(
+            bias_payload = compute_bias_payload(
+                target_splits_nom["train"],
+                finetune_preds_train,
+                target_station_col,
+                mode=args.post_bias_correction_mode,
+            )
+            finetune_preds_test_bias = apply_bias_payload(
                 target_splits_nom["test"],
                 finetune_preds_test,
                 target_station_col,
-                bias_map,
-                global_bias,
+                bias_payload,
             )
-            from pipeline_common import compute_metrics
-
             finetune_metrics_test_bias = compute_metrics(target_splits_nom["test"][TARGET_COLUMN], finetune_preds_test_bias)
-            summary_rows_bias.append({"mode": "finetune", **finetune_metrics_test_bias})
+            summary_rows_bias.append(
+                {
+                    "mode": "finetune",
+                    "bias_variant": str(bias_payload["mode"]),
+                    **finetune_metrics_test_bias,
+                }
+            )
             save_json(
                 mode_outdir / "bias_correction_meta.json",
-                {"global_bias": global_bias, "station_bias_count": int(len(bias_map))},
+                {
+                    "mode": str(bias_payload["mode"]),
+                    "global_bias": float(bias_payload["global_bias"]),
+                    "station_bias_count": int(bias_payload["station_bias_count"]),
+                    "station_month_bias_count": int(bias_payload.get("station_month_bias_count", 0)),
+                },
             )
             save_json(mode_outdir / "metrics_test_bias_corrected.json", finetune_metrics_test_bias)
         print(f"[transfer] mode=finetune done test_metrics={finetune_metrics_test}", flush=True)
@@ -377,6 +474,7 @@ def main() -> None:
     pd.DataFrame(summary_rows).to_csv(Path(outdir) / "summary_metrics.csv", index=False)
     if summary_rows_bias:
         pd.DataFrame(summary_rows_bias).to_csv(Path(outdir) / "summary_metrics_bias_corrected.csv", index=False)
+
     save_json(
         Path(outdir) / "run_config.json",
         {
@@ -393,12 +491,17 @@ def main() -> None:
             "num_boost_round": args.num_boost_round,
             "early_stopping_rounds": args.early_stopping_rounds,
             "seed": args.seed,
+            "winter_weight_factor": args.winter_weight_factor,
             "post_bias_correction": args.post_bias_correction,
+            "post_bias_correction_mode": args.post_bias_correction_mode,
             "source_rows": int(len(source_df)),
             "target_rows": int(len(target_df)),
         },
     )
+
     print(f"[transfer] summary_rows={summary_rows}", flush=True)
+    if summary_rows_bias:
+        print(f"[transfer] summary_rows_bias={summary_rows_bias}", flush=True)
     print(f"Saved transfer run: {outdir}")
 
 

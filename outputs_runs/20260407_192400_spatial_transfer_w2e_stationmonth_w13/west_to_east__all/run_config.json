@@ -1,0 +1,30 @@
+{
+  "source_csv": "/tmp/spatial_transfer_96qzp5tt/saratov_west.csv",
+  "target_csv": "/tmp/spatial_transfer_96qzp5tt/saratov_east.csv",
+  "modes": [
+    "zero-shot",
+    "finetune",
+    "scratch"
+  ],
+  "train_years": [
+    2013,
+    2021
+  ],
+  "test_years": [
+    2022,
+    2023
+  ],
+  "target_max_stations": null,
+  "zero_inflated_precip": false,
+  "winter_only": false,
+  "device": "cuda",
+  "n_trials": 10,
+  "num_boost_round": 2500,
+  "early_stopping_rounds": 120,
+  "seed": 42,
+  "winter_weight_factor": 1.3,
+  "post_bias_correction": true,
+  "post_bias_correction_mode": "station_month",
+  "source_rows": 104442,
+  "target_rows": 103836
+}

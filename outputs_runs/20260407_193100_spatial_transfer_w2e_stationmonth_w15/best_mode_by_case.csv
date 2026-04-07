@@ -1,0 +1,4 @@
+direction,target_station_count,source_region,target_region,requested_target_stations,mode,R2,RMSE,MAE,MedAE,n,run_dir
+west_to_east,3,west,east,3,finetune,0.980304292329848,1.7222634176600862,1.000427097089137,0.5944854259490966,5110,outputs_runs/20260407_193100_spatial_transfer_w2e_stationmonth_w15/west_to_east__fewtrain03
+west_to_east,5,west,east,5,scratch,0.981009681313418,1.6911413497406895,0.9764259359094728,0.5709288597106923,5110,outputs_runs/20260407_193100_spatial_transfer_w2e_stationmonth_w15/west_to_east__fewtrain05
+west_to_east,26,west,east,26,scratch,0.9850201101187372,1.501993635706797,0.8978711869618664,0.5789551258087162,5110,outputs_runs/20260407_193100_spatial_transfer_w2e_stationmonth_w15/west_to_east__all

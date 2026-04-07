@@ -431,6 +431,44 @@ Run: `outputs_runs/20260407_185400_spatial_transfer_w2e_bias`
 
 Итог этапа: station-bias correction даёт заметный плюс только для `zero-shot`; для `scratch/finetune` эффект близок к нулю и местами отрицательный.
 
+### 7.11 West->East: station_month + winter weight scan
+
+Скрипты: `transfer/xgb_transfer_experiment.py`, `transfer/spatial_transfer_preflight.py`  
+Runs:
+
+- `outputs_runs/20260407_191500_spatial_transfer_w2e_stationmonth_w10`
+- `outputs_runs/20260407_192400_spatial_transfer_w2e_stationmonth_w13`
+- `outputs_runs/20260407_193100_spatial_transfer_w2e_stationmonth_w15`
+- сводка: `outputs_runs/20260407_194700_w2e_stationmonth_weight_scan_summary`
+
+Постановка:
+
+- направление только `west -> east`
+- bias-коррекция: `post_bias_correction_mode=station_month`
+- веса зимы в train: `winter_weight_factor = 1.0 / 1.3 / 1.5`
+- режимы калибровки: `all`, `fewtrain05`, `fewtrain03`
+- настройки: `n_trials=10`, `num_boost_round=2500`, `early_stopping_rounds=120`
+
+Лучший RMSE внутри новой сетки (`station_month` + зимние веса):
+
+| Калибровка | Лучший `winter_weight_factor` | Лучшая ветка | R2 | RMSE | MAE |
+|---|---:|---|---:|---:|---:|
+| `all` | `1.3` | `scratch+bias[station_month]` | 0.9859 | 1.4591 | 0.8771 |
+| `fewtrain05` | `1.3` | `finetune+bias[station_month]` | 0.9813 | 1.6788 | 0.9690 |
+| `fewtrain03` | `1.3` | `scratch+bias[station_month]` | 0.9808 | 1.7015 | 0.9953 |
+
+Сравнение с предыдущим baseline `station`-bias (`20260407_185400_spatial_transfer_w2e_bias`):
+
+- `all`: `RMSE 1.4689 -> 1.4591` (`-0.0098`)
+- `fewtrain05`: `RMSE 1.6741 -> 1.6788` (`+0.0047`)
+- `fewtrain03`: `RMSE 1.6989 -> 1.7015` (`+0.0025`)
+
+<p align="center">
+  <img src="outputs_runs/20260407_194700_w2e_stationmonth_weight_scan_summary/rmse_best_vs_winter_weight.png" width="760">
+</p>
+
+Итог этапа: в новой ветке оптимальным оказался `winter_weight_factor=1.3`; улучшение подтверждено для `all`, но на low-station режимах (`5/3`) выигрыш над предыдущим `station`-bias не получен.
+
 ---
 
 ## 8. Волгоград: перенос на второй регион

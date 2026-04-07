@@ -54,7 +54,13 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--zero-inflated-precip", action="store_true")
     parser.add_argument("--winter-only", action="store_true")
+    parser.add_argument("--winter-weight-factor", type=float, default=1.0)
     parser.add_argument("--post-bias-correction", action="store_true")
+    parser.add_argument(
+        "--post-bias-correction-mode",
+        choices=["station", "station_month"],
+        default="station",
+    )
     parser.add_argument("--keep-case-artifacts", action="store_true")
     parser.add_argument("--output-dir", default=None)
     return parser
@@ -151,7 +157,9 @@ def run_transfer_case(
     test_end_year: int,
     zero_inflated_precip: bool,
     winter_only: bool,
+    winter_weight_factor: float,
     post_bias_correction: bool,
+    post_bias_correction_mode: str,
 ) -> None:
     cmd = [
         sys.executable,
@@ -187,8 +195,11 @@ def run_transfer_case(
         cmd.append("--zero-inflated-precip")
     if winter_only:
         cmd.append("--winter-only")
+    if winter_weight_factor != 1.0:
+        cmd.extend(["--winter-weight-factor", str(winter_weight_factor)])
     if post_bias_correction:
         cmd.append("--post-bias-correction")
+        cmd.extend(["--post-bias-correction-mode", post_bias_correction_mode])
 
     subprocess.run(cmd, cwd=PROJECT_ROOT, check=True)
 
@@ -217,6 +228,7 @@ def collect_case_summary(
                 "MAE": float(b_row["MAE"]),
                 "MedAE": float(b_row["MedAE"]),
                 "n": int(b_row["n"]),
+                "bias_variant": str(b_row.get("bias_variant", "station")),
             }
     rows: list[dict[str, float | int | str]] = []
     run_dir_resolved = run_dir.resolve()
@@ -227,19 +239,13 @@ def collect_case_summary(
         run_dir_label = str(run_dir_resolved)
 
     for _, row in summary_df.iterrows():
-        mode_dir = run_dir / str(row["mode"]).replace("-", "_")
-        station_metrics_path = mode_dir / "metrics_by_station_test.csv"
-        target_station_count = None
-        if station_metrics_path.exists():
-            target_station_count = int(len(pd.read_csv(station_metrics_path)))
-
         rows.append(
             {
                 "direction": direction,
                 "source_region": source_region,
                 "target_region": target_region,
                 "requested_target_stations": int(requested_budget),
-                "target_station_count": target_station_count if target_station_count is not None else int(requested_budget),
+                "target_station_count": int(requested_budget),
                 "mode": str(row["mode"]),
                 "R2": float(row["R2"]),
                 "RMSE": float(row["RMSE"]),
@@ -258,8 +264,8 @@ def collect_case_summary(
                     "source_region": source_region,
                     "target_region": target_region,
                     "requested_target_stations": int(requested_budget),
-                    "target_station_count": target_station_count if target_station_count is not None else int(requested_budget),
-                    "mode": f"{mode_name}+bias",
+                    "target_station_count": int(requested_budget),
+                    "mode": f"{mode_name}+bias[{str(b.get('bias_variant', 'station'))}]",
                     "R2": float(b["R2"]),
                     "RMSE": float(b["RMSE"]),
                     "MAE": float(b["MAE"]),
@@ -272,8 +278,12 @@ def collect_case_summary(
 
 
 def save_metric_plot(summary_df: pd.DataFrame, metric: str, output_png: Path) -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), sharey=True)
-    for ax, direction in zip(axes, sorted(summary_df["direction"].unique())):
+    directions = sorted(summary_df["direction"].unique())
+    ncols = max(1, len(directions))
+    fig, axes = plt.subplots(1, ncols, figsize=(5.5 * ncols, 4.5), sharey=True)
+    if ncols == 1:
+        axes = [axes]
+    for ax, direction in zip(axes, directions):
         sub = summary_df[summary_df["direction"] == direction].copy()
         for mode in ["zero-shot", "finetune", "scratch"]:
             mode_df = sub[sub["mode"] == mode].sort_values("target_station_count")
@@ -290,7 +300,10 @@ def save_metric_plot(summary_df: pd.DataFrame, metric: str, output_png: Path) ->
         ax.set_xlabel("Target stations")
         ax.grid(alpha=0.25)
     axes[0].set_ylabel(metric)
-    axes[1].legend(frameon=False)
+    legend_ax = axes[-1]
+    handles, labels = legend_ax.get_legend_handles_labels()
+    if handles:
+        legend_ax.legend(frameon=False)
     fig.tight_layout()
     fig.savefig(output_png, dpi=170)
     plt.close(fig)
@@ -346,7 +359,9 @@ def main() -> None:
         "seed": args.seed,
         "zero_inflated_precip": args.zero_inflated_precip,
         "winter_only": args.winter_only,
+        "winter_weight_factor": args.winter_weight_factor,
         "post_bias_correction": args.post_bias_correction,
+        "post_bias_correction_mode": args.post_bias_correction_mode,
         "keep_case_artifacts": args.keep_case_artifacts,
     }
     (outdir / "split_meta.json").write_text(json.dumps(split_meta, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -417,7 +432,9 @@ def main() -> None:
                     test_end_year=args.test_end_year,
                     zero_inflated_precip=args.zero_inflated_precip,
                     winter_only=args.winter_only,
+                    winter_weight_factor=args.winter_weight_factor,
                     post_bias_correction=args.post_bias_correction,
+                    post_bias_correction_mode=args.post_bias_correction_mode,
                 )
                 summary_rows.extend(
                     collect_case_summary(

@@ -1,0 +1,10 @@
+winter_weight_factor,target_station_count,best_mode,RMSE,MAE,R2,source_run
+1.0,3,finetune+bias[station_month],1.7326314095927362,1.0162367991514203,0.9800664430078576,outputs_runs/20260407_191500_spatial_transfer_w2e_stationmonth_w10
+1.3,3,scratch+bias[station_month],1.701458508350097,0.9952809965546516,0.9807772657628648,outputs_runs/20260407_192400_spatial_transfer_w2e_stationmonth_w13
+1.5,3,finetune,1.7222634176600862,1.000427097089137,0.980304292329848,outputs_runs/20260407_193100_spatial_transfer_w2e_stationmonth_w15
+1.0,5,scratch,1.7046489907096083,0.9951469105237152,0.9807051073231148,outputs_runs/20260407_191500_spatial_transfer_w2e_stationmonth_w10
+1.3,5,finetune+bias[station_month],1.6788012156175336,0.969010200825256,0.981285812090489,outputs_runs/20260407_192400_spatial_transfer_w2e_stationmonth_w13
+1.5,5,scratch,1.6911413497406895,0.9764259359094728,0.981009681313418,outputs_runs/20260407_193100_spatial_transfer_w2e_stationmonth_w15
+1.0,26,scratch+bias[station_month],1.4593534674743298,0.8736236054171462,0.9858585668582892,outputs_runs/20260407_191500_spatial_transfer_w2e_stationmonth_w10
+1.3,26,scratch+bias[station_month],1.4590892874368198,0.8770503418871245,0.9858636863119048,outputs_runs/20260407_192400_spatial_transfer_w2e_stationmonth_w13
+1.5,26,scratch,1.501993635706797,0.8978711869618664,0.9850201101187372,outputs_runs/20260407_193100_spatial_transfer_w2e_stationmonth_w15
