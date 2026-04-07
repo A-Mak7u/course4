@@ -1,0 +1,15 @@
+{
+  "csv": "final_2013_2023_T_ERA5_LST_daynight.csv",
+  "train_start_year": 2013,
+  "train_end_year": 2021,
+  "test_start_year": 2022,
+  "test_end_year": 2023,
+  "device": "cuda",
+  "n_trials_full": 30,
+  "n_trials_winter": 30,
+  "num_boost_round": 3000,
+  "early_stopping_rounds": 150,
+  "seed": 42,
+  "zero_inflated_precip": false,
+  "output_dir": null
+}

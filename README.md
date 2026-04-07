@@ -252,6 +252,32 @@ Run: `outputs_runs/20260407_161900_saratov_uncertainty_full_calibrated`
 
 Итог этапа: интервалы пока недокрывают фактическую неопределённость (coverage ниже цели), особенно по отдельным месяцам; это зафиксированная зона доработки.
 
+### 7.4 Winter hybrid (full + winter specialist)
+
+Скрипт: `transfer/saratov_winter_hybrid_experiment.py`  
+Run: `outputs_runs/20260407_163025_saratov_winter_hybrid`
+
+Постановка:
+
+- базовая full-year модель обучается на `2013-2021` и тестируется на `2022-2023`
+- отдельная winter-only модель обучается только на месяцах `11,12,1,2,3`
+- в hybrid-прогнозе значения для зимних месяцев берутся из winter-only модели, остальные месяцы остаются из full-year модели
+
+Сравнение на test:
+
+| Срез | База (full) | Hybrid (full+winter) |
+|---|---:|---:|
+| `RMSE` (полный test) | 1.1450 | 1.1553 |
+| `MAE` (полный test) | 0.7094 | 0.7148 |
+| `RMSE` (winter) | 1.3588 | 1.3796 |
+| `MAE` (winter) | 0.8065 | 0.8197 |
+
+<p align="center">
+  <img src="outputs_runs/20260407_163025_saratov_winter_hybrid/mae_by_month_comparison.png" width="760">
+</p>
+
+Итог этапа: раздельная winter-ветка в текущей реализации не улучшила качество ни на зимнем срезе, ни на полном test; базовая full-year модель остаётся сильнее.
+
 ---
 
 ## 8. Волгоград: перенос на второй регион
