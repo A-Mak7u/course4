@@ -1,0 +1,8 @@
+{
+  "rows_before_validation": 208278,
+  "rows_after_validation": 47476,
+  "rows_dropped": 160802,
+  "stations_after_validation": 13,
+  "date_min": "2014-01-01",
+  "date_max": "2023-12-31"
+}

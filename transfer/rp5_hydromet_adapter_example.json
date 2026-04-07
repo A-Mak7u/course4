@@ -1,0 +1,6 @@
+{
+  "Дата": "Date",
+  "Код станции": "station",
+  "T_rp5_raw": "T_rp5",
+  "T_rosgidromet_raw": "T_hydromet"
+}

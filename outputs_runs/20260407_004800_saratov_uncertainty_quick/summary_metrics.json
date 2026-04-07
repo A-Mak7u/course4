@@ -1,0 +1,12 @@
+{
+  "n": 10220,
+  "coverage_p10_p90": 0.7044031311154599,
+  "interval_width_mean": 2.001211166381836,
+  "interval_width_median": 1.5550346374511719,
+  "interval_width_p90": 2.731757164001465,
+  "crossing_rate_raw": 0.0005870841487279843,
+  "mae_p50": 0.7115521407500639,
+  "rmse_p50": 1.1468933364438847,
+  "target_coverage": 0.8,
+  "coverage_gap": -0.09559686888454011
+}

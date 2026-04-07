@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 from pathlib import Path
 
 import numpy as np
@@ -61,6 +62,9 @@ def build_design(df: pd.DataFrame, rp5_col: str) -> list[str]:
 def make_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Калибровочный мост температуры rp5 -> Росгидромет")
     parser.add_argument("--input-csv", required=True, help="CSV с совпадающими датами и станциями rp5/Росгидромета")
+    parser.add_argument("--adapter-json", default=None, help="JSON-маппинг колонок raw->canonical")
+    parser.add_argument("--schema-only", action="store_true", help="Только валидация схемы и отчет без обучения")
+    parser.add_argument("--strict-schema", action="store_true", help="Падать при невалидных датах/числах в целевых колонках")
     parser.add_argument("--date-col", default=None)
     parser.add_argument("--station-col", default=None)
     parser.add_argument("--rp5-col", default=None)
@@ -74,9 +78,73 @@ def make_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def apply_adapter_mapping(df: pd.DataFrame, adapter_json: str | None) -> pd.DataFrame:
+    if not adapter_json:
+        return df
+    mapping = json.loads(Path(adapter_json).read_text(encoding="utf-8"))
+    if not isinstance(mapping, dict):
+        raise RuntimeError("adapter-json должен содержать JSON-объект {raw_col: canonical_col}")
+    rename_map: dict[str, str] = {}
+    for raw_col, canonical_col in mapping.items():
+        if not isinstance(raw_col, str) or not isinstance(canonical_col, str):
+            raise RuntimeError("adapter-json должен содержать строковые пары {raw_col: canonical_col}")
+        if raw_col in df.columns:
+            rename_map[raw_col] = canonical_col
+    return df.rename(columns=rename_map)
+
+
+def validate_frame(
+    df: pd.DataFrame,
+    *,
+    strict_schema: bool,
+) -> tuple[pd.DataFrame, dict[str, float | int]]:
+    required_cols = ["Date", "station", "T_rp5", "T_hydromet"]
+    missing = [col for col in required_cols if col not in df.columns]
+    if missing:
+        raise RuntimeError(f"Входная таблица не содержит обязательные колонки: {missing}")
+
+    out = df.copy()
+    rows_before = int(len(out))
+
+    date_raw = out["Date"].copy()
+    out["Date"] = pd.to_datetime(out["Date"], errors="coerce")
+    if strict_schema:
+        bad_dates = int(out["Date"].isna().sum())
+        if bad_dates > 0:
+            raise RuntimeError(f"Невалидные даты в колонке Date: {bad_dates}")
+
+    rp5_raw = out["T_rp5"].copy()
+    hydromet_raw = out["T_hydromet"].copy()
+    out["T_rp5"] = pd.to_numeric(out["T_rp5"], errors="coerce")
+    out["T_hydromet"] = pd.to_numeric(out["T_hydromet"], errors="coerce")
+
+    if strict_schema:
+        bad_rp5 = int(rp5_raw.notna().sum() - out["T_rp5"].notna().sum())
+        bad_hydromet = int(hydromet_raw.notna().sum() - out["T_hydromet"].notna().sum())
+        if bad_rp5 > 0 or bad_hydromet > 0:
+            raise RuntimeError(f"Невалидные числовые значения: bad_rp5={bad_rp5}, bad_hydromet={bad_hydromet}")
+
+    out["station"] = out["station"].astype(str).str.strip()
+    if strict_schema and (out["station"] == "").any():
+        raise RuntimeError("Пустые station id после нормализации")
+
+    out = out.dropna(subset=["Date", "station", "T_rp5", "T_hydromet"]).copy()
+    report = {
+        "rows_before_validation": rows_before,
+        "rows_after_validation": int(len(out)),
+        "rows_dropped": int(rows_before - len(out)),
+        "stations_after_validation": int(out["station"].nunique()),
+        "date_min": str(out["Date"].min().date()) if not out.empty else None,
+        "date_max": str(out["Date"].max().date()) if not out.empty else None,
+    }
+    return out, report
+
+
 def main() -> None:
     args = make_parser().parse_args()
     df = pd.read_csv(args.input_csv)
+    df.columns = [str(c).strip() for c in df.columns]
+    df = apply_adapter_mapping(df, args.adapter_json)
 
     date_col = infer_column(df, args.date_col, DATE_CANDIDATES, "даты")
     station_col = infer_column(df, args.station_col, STATION_CANDIDATES, "станции")
@@ -84,8 +152,9 @@ def main() -> None:
     hydromet_col = infer_column(df, args.hydromet_col, HYDROMET_TEMP_CANDIDATES, "температуры Росгидромета")
 
     df = df.rename(columns={date_col: "Date", station_col: "station", rp5_col: "T_rp5", hydromet_col: "T_hydromet"}).copy()
-    df["Date"] = pd.to_datetime(df["Date"])
-    df = df.dropna(subset=["Date", "station", "T_rp5", "T_hydromet"]).copy()
+    df, schema_report = validate_frame(df, strict_schema=args.strict_schema)
+    if df.empty:
+        raise RuntimeError("После валидации входная таблица пуста")
     df["year"] = df["Date"].dt.year
 
     station_counts = df["station"].value_counts()
@@ -120,6 +189,11 @@ def main() -> None:
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         outdir = f"outputs_runs/{ts}_rp5_hydromet_bridge"
     ensure_dir(outdir)
+    save_json(Path(outdir) / "schema_report.json", schema_report)
+
+    if args.schema_only:
+        print(f"Schema validation OK, report saved: {Path(outdir) / 'schema_report.json'}")
+        return
 
     coef_df = pd.DataFrame({"feature": features, "coef": model.coef_})
     coef_df.to_csv(Path(outdir) / "bridge_coefficients.csv", index=False)
@@ -160,6 +234,7 @@ def main() -> None:
             "baseline_test": baseline_test,
             "bridge_train": bridge_train,
             "bridge_test": bridge_test,
+            "schema_report": schema_report,
             "ridge_alpha": args.ridge_alpha,
             "intercept": float(model.intercept_),
             "n_features": len(features),
