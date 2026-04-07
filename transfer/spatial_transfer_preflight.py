@@ -196,6 +196,13 @@ def collect_case_summary(
 
     summary_df = pd.read_csv(summary_path)
     rows: list[dict[str, float | int | str]] = []
+    run_dir_resolved = run_dir.resolve()
+    project_root_resolved = PROJECT_ROOT.resolve()
+    try:
+        run_dir_label = str(run_dir_resolved.relative_to(project_root_resolved))
+    except ValueError:
+        run_dir_label = str(run_dir_resolved)
+
     for _, row in summary_df.iterrows():
         mode_dir = run_dir / str(row["mode"]).replace("-", "_")
         station_metrics_path = mode_dir / "metrics_by_station_test.csv"
@@ -216,7 +223,7 @@ def collect_case_summary(
                 "MAE": float(row["MAE"]),
                 "MedAE": float(row["MedAE"]),
                 "n": int(row["n"]),
-                "run_dir": str(run_dir.relative_to(PROJECT_ROOT)),
+                "run_dir": run_dir_label,
             }
         )
     return rows

@@ -1,0 +1,56 @@
+{
+  "base": {
+    "max_depth": 11,
+    "learning_rate": 0.01828322424873187,
+    "subsample": 0.6043057314810154,
+    "colsample_bytree": 0.9658038169264266,
+    "reg_lambda": 3.8837830022107993,
+    "alpha": 0.009492539901708294,
+    "min_child_weight": 17,
+    "objective": "reg:squarederror",
+    "tree_method": "hist",
+    "device": "cuda",
+    "seed": 42
+  },
+  "p10": {
+    "max_depth": 11,
+    "learning_rate": 0.01828322424873187,
+    "subsample": 0.6043057314810154,
+    "colsample_bytree": 0.9658038169264266,
+    "reg_lambda": 3.8837830022107993,
+    "alpha": 0.009492539901708294,
+    "min_child_weight": 17,
+    "objective": "reg:quantileerror",
+    "tree_method": "hist",
+    "device": "cuda",
+    "seed": 42,
+    "quantile_alpha": 0.1
+  },
+  "p50": {
+    "max_depth": 11,
+    "learning_rate": 0.01828322424873187,
+    "subsample": 0.6043057314810154,
+    "colsample_bytree": 0.9658038169264266,
+    "reg_lambda": 3.8837830022107993,
+    "alpha": 0.009492539901708294,
+    "min_child_weight": 17,
+    "objective": "reg:squarederror",
+    "tree_method": "hist",
+    "device": "cuda",
+    "seed": 42
+  },
+  "p90": {
+    "max_depth": 11,
+    "learning_rate": 0.01828322424873187,
+    "subsample": 0.6043057314810154,
+    "colsample_bytree": 0.9658038169264266,
+    "reg_lambda": 3.8837830022107993,
+    "alpha": 0.009492539901708294,
+    "min_child_weight": 17,
+    "objective": "reg:quantileerror",
+    "tree_method": "hist",
+    "device": "cuda",
+    "seed": 42,
+    "quantile_alpha": 0.9
+  }
+}

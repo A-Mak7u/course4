@@ -1,0 +1,27 @@
+{
+  "source_csv": "final_2013_2023_T_ERA5_LST_daynight.csv",
+  "target_csv": "data/volgograd/processed/volgograd_final_2013_2023_T_ERA5_LST_daynight.csv",
+  "modes": [
+    "zero-shot",
+    "finetune",
+    "scratch"
+  ],
+  "train_years": [
+    2013,
+    2021
+  ],
+  "test_years": [
+    2022,
+    2023
+  ],
+  "target_max_stations": null,
+  "zero_inflated_precip": false,
+  "winter_only": true,
+  "device": "cuda",
+  "n_trials": 25,
+  "num_boost_round": 3500,
+  "early_stopping_rounds": 150,
+  "seed": 42,
+  "source_rows": 86284,
+  "target_rows": 19361
+}

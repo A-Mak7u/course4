@@ -301,6 +301,82 @@ Run: `outputs_runs/20260407_163846_saratov_winter_weight_scan`
 
 Итог этапа: умеренное взвешивание зимних месяцев (`factor ~ 1.3-1.5`) даёт небольшой, но реальный прирост на зимнем срезе без заметной потери общего качества.
 
+### 7.6 Winter transfer (мульти-сид x10, усиленный прогон)
+
+Скрипт: `transfer/run_winter_transfer_multiseed.py`  
+Run: `outputs_runs/20260407_164430_volgograd_winter_multiseed_x10`
+
+Постановка:
+
+- winter-only выборка (`11,12,1,2,3`)
+- перенос `Saratov -> Volgograd`
+- `10` сидов (`42..132`) в режимах `zero-shot`, `finetune`, `scratch`
+- усиленные настройки: `n_trials=25`, `num_boost_round=3500`
+
+Агрегированные test-метрики по сидам:
+
+| Ветка | R2 mean ± std | RMSE mean ± std | MAE mean ± std | n |
+|---|---:|---:|---:|---:|
+| `scratch` | 0.9761 ± 0.0002 | 0.9317 ± 0.0039 | 0.6757 ± 0.0025 | 3624 |
+| `finetune` | 0.9751 ± 0.0005 | 0.9507 ± 0.0092 | 0.6915 ± 0.0076 | 3624 |
+| `zero-shot` | 0.9442 ± 0.0037 | 1.4220 ± 0.0480 | 1.0027 ± 0.0267 | 3624 |
+
+<p align="center">
+  <img src="outputs_runs/20260407_164430_volgograd_winter_multiseed_x10/rmse_by_seed.png" width="760">
+</p>
+
+Итог этапа: при увеличении числа сидов и более тяжёлом тюнинге ranking не изменился; `scratch` стабильно лучший, `finetune` второй, `zero-shot` заметно слабее.
+
+### 7.7 Spatial preflight (усиленный прогон)
+
+Скрипт: `transfer/spatial_transfer_preflight.py`  
+Run: `outputs_runs/20260407_164430_spatial_transfer_preflight_serious_fix`
+
+Постановка:
+
+- проверка пространственного переноса в двух направлениях: `east->west` и `west->east`
+- режимы калибровки: `all`, `fewtrain05`, `fewtrain03`
+- настройки: `n_trials=18`, `num_boost_round=3000`, `zero_inflated_precip=True`
+
+Метрики `scratch` по кейсам:
+
+| Направление | Режим | R2 | RMSE | MAE | n |
+|---|---|---:|---:|---:|---:|
+| `east->west` | `all` | 0.9950 | 0.7680 | 0.5845 | 5110 |
+| `east->west` | `fewtrain05` | 0.9949 | 0.7758 | 0.5925 | 5110 |
+| `east->west` | `fewtrain03` | 0.9945 | 0.7993 | 0.6138 | 5110 |
+| `west->east` | `all` | 0.9860 | 1.4536 | 0.8739 | 5110 |
+| `west->east` | `fewtrain05` | 0.9809 | 1.6941 | 0.9862 | 5110 |
+| `west->east` | `fewtrain03` | 0.9798 | 1.7424 | 0.9997 | 5110 |
+
+<p align="center">
+  <img src="outputs_runs/20260407_164430_spatial_transfer_preflight_serious_fix/summary_rmse.png" width="760">
+</p>
+
+Итог этапа: асимметрия переноса подтверждена ещё раз; `east->west` остаётся существенно легче, `west->east` резко деградирует при сокращении калибровочных станций.
+
+### 7.8 Интервалы неопределённости (strict rerun)
+
+Скрипт: `transfer/saratov_uncertainty_intervals.py`  
+Runs:
+
+- `outputs_runs/20260407_164430_saratov_uncertainty_cov80_strict`
+- `outputs_runs/20260407_164430_saratov_uncertainty_cov85_strict`
+
+Сводка test-метрик:
+
+| Run | target coverage | coverage(P10,P90) | coverage gap | width mean | P50 RMSE | P50 MAE |
+|---|---:|---:|---:|---:|---:|---:|
+| `cov80_strict` | 0.80 | 0.6210 | -0.1790 | 1.6837 | 1.1762 | 0.7253 |
+| `cov85_strict` | 0.85 | 0.7047 | -0.1453 | 1.9469 | 1.1414 | 0.7084 |
+
+<p align="center">
+  <img src="outputs_runs/20260407_164430_saratov_uncertainty_cov85_strict/coverage_by_month_test.png" width="430">
+  <img src="outputs_runs/20260407_164430_saratov_uncertainty_cov85_strict/interval_width_hist_test.png" width="430">
+</p>
+
+Итог этапа: даже в усиленном прогоне интервалы остаются недокалиброванными (coverage ниже цели); рост целевого уровня с `0.80` до `0.85` расширяет интервал и улучшает фактическое покрытие, но разрыв сохраняется.
+
 ---
 
 ## 8. Волгоград: перенос на второй регион

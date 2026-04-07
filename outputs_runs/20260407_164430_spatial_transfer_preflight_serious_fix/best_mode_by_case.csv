@@ -1,0 +1,3 @@
+direction,target_station_count,source_region,target_region,requested_target_stations,mode,R2,RMSE,MAE,MedAE,n,run_dir
+east_to_west,7,east,west,26,scratch,0.9949677419298892,0.7680180865203708,0.5844501161761947,0.4617609500885011,5110,outputs_runs/20260407_164430_spatial_transfer_preflight_serious_fix/east_to_west__all
+west_to_east,7,west,east,26,scratch,0.9859688954381324,1.453649531258956,0.8738536465191328,0.5569998264312748,5110,outputs_runs/20260407_164430_spatial_transfer_preflight_serious_fix/west_to_east__all
