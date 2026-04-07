@@ -250,7 +250,7 @@ Run: `outputs_runs/20260407_161900_saratov_uncertainty_full_calibrated`
   <img src="outputs_runs/20260407_161900_saratov_uncertainty_full_calibrated/interval_width_hist_test.png" width="430">
 </p>
 
-Итог этапа: интервалы пока недокрывают фактическую неопределённость (coverage ниже цели), особенно по отдельным месяцам; это зафиксированная зона доработки.
+Итог этапа: интервалы пока недокрывают фактическую неопределённость (coverage ниже цели), особенно по отдельным месяцам.
 
 ### 7.4 Winter hybrid (full + winter specialist)
 
