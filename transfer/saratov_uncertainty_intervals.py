@@ -39,13 +39,19 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-boost-round", type=int, default=2500)
     parser.add_argument("--early-stopping-rounds", type=int, default=120)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--target-coverage", type=float, default=0.80)
     parser.add_argument("--output-dir", default=None)
     return parser
 
 
-def compute_interval_metrics(y_true: np.ndarray, p10: np.ndarray, p50: np.ndarray, p90: np.ndarray) -> dict[str, float | int]:
-    lower = np.minimum(p10, p90)
-    upper = np.maximum(p10, p90)
+def compute_interval_metrics(
+    y_true: np.ndarray,
+    lower: np.ndarray,
+    p50: np.ndarray,
+    upper: np.ndarray,
+    *,
+    crossing_rate_raw: float | None = None,
+) -> dict[str, float | int]:
     inside = (y_true >= lower) & (y_true <= upper)
     width = upper - lower
     return {
@@ -54,7 +60,7 @@ def compute_interval_metrics(y_true: np.ndarray, p10: np.ndarray, p50: np.ndarra
         "interval_width_mean": float(width.mean()),
         "interval_width_median": float(np.median(width)),
         "interval_width_p90": float(np.quantile(width, 0.90)),
-        "crossing_rate_raw": float((p10 > p90).mean()),
+        "crossing_rate_raw": float(crossing_rate_raw) if crossing_rate_raw is not None else float("nan"),
         "mae_p50": float(np.mean(np.abs(y_true - p50))),
         "rmse_p50": float(np.sqrt(np.mean((y_true - p50) ** 2))),
     }
@@ -123,6 +129,45 @@ def plot_monthly_coverage(monthly_csv: Path, output_png: Path) -> None:
     plt.tight_layout()
     plt.savefig(output_png, dpi=160)
     plt.close()
+
+
+def build_interval(
+    p10_raw: np.ndarray,
+    p50: np.ndarray,
+    p90_raw: np.ndarray,
+    scale: float = 1.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    raw_lower = np.minimum(p10_raw, p90_raw)
+    raw_upper = np.maximum(p10_raw, p90_raw)
+    left_half = np.maximum(p50 - raw_lower, 1e-6)
+    right_half = np.maximum(raw_upper - p50, 1e-6)
+    lower = p50 - scale * left_half
+    upper = p50 + scale * right_half
+    return lower, upper
+
+
+def estimate_calibration_scale(
+    y_true: np.ndarray,
+    p10_raw: np.ndarray,
+    p50: np.ndarray,
+    p90_raw: np.ndarray,
+    target_coverage: float,
+) -> float:
+    raw_lower = np.minimum(p10_raw, p90_raw)
+    raw_upper = np.maximum(p10_raw, p90_raw)
+    left_half = np.maximum(p50 - raw_lower, 1e-6)
+    right_half = np.maximum(raw_upper - p50, 1e-6)
+
+    errors = np.abs(y_true - p50)
+    denom = np.where(y_true <= p50, left_half, right_half)
+    ratio = errors / np.maximum(denom, 1e-6)
+    ratio = ratio[np.isfinite(ratio)]
+    if len(ratio) == 0:
+        return 1.0
+
+    q = float(np.quantile(ratio, np.clip(target_coverage, 0.01, 0.99)))
+    # keep calibration bounded to avoid pathological widening/shrinking
+    return float(np.clip(q, 0.5, 3.0))
 
 
 def main() -> None:
@@ -221,30 +266,68 @@ def main() -> None:
     p10 = model_p10.predict(dtest)
     p90 = model_p90.predict(dtest)
 
+    dval = xgb.DMatrix(inner_val[features], label=inner_val[TARGET_COLUMN])
+    p50_val = model_p50.predict(dval)
+    p10_val = model_p10.predict(dval)
+    p90_val = model_p90.predict(dval)
+    scale = estimate_calibration_scale(
+        y_true=inner_val[TARGET_COLUMN].to_numpy(),
+        p10_raw=p10_val,
+        p50=p50_val,
+        p90_raw=p90_val,
+        target_coverage=args.target_coverage,
+    )
+
     out = test.copy()
     out["y_pred_p10_raw"] = p10
     out["y_pred_p50"] = p50
     out["y_pred_p90_raw"] = p90
-    out["y_pred_p10"] = np.minimum(p10, p90)
-    out["y_pred_p90"] = np.maximum(p10, p90)
+    lower_raw, upper_raw = build_interval(p10, p50, p90, scale=1.0)
+    lower_cal, upper_cal = build_interval(p10, p50, p90, scale=scale)
+    out["y_pred_p10"] = lower_cal
+    out["y_pred_p90"] = upper_cal
+    out["y_pred_p10_uncalibrated"] = lower_raw
+    out["y_pred_p90_uncalibrated"] = upper_raw
     out["inside"] = (
         (out[TARGET_COLUMN] >= out["y_pred_p10"]) & (out[TARGET_COLUMN] <= out["y_pred_p90"])
     ).astype(int)
+    out["inside_uncalibrated"] = (
+        (out[TARGET_COLUMN] >= out["y_pred_p10_uncalibrated"])
+        & (out[TARGET_COLUMN] <= out["y_pred_p90_uncalibrated"])
+    ).astype(int)
     out["interval_width"] = out["y_pred_p90"] - out["y_pred_p10"]
+    out["interval_width_uncalibrated"] = out["y_pred_p90_uncalibrated"] - out["y_pred_p10_uncalibrated"]
 
+    summary_uncalibrated = compute_interval_metrics(
+        y_true=out[TARGET_COLUMN].to_numpy(),
+        lower=out["y_pred_p10_uncalibrated"].to_numpy(),
+        p50=out["y_pred_p50"].to_numpy(),
+        upper=out["y_pred_p90_uncalibrated"].to_numpy(),
+        crossing_rate_raw=float((out["y_pred_p10_raw"] > out["y_pred_p90_raw"]).mean()),
+    )
     summary = compute_interval_metrics(
         y_true=out[TARGET_COLUMN].to_numpy(),
-        p10=out["y_pred_p10_raw"].to_numpy(),
+        lower=out["y_pred_p10"].to_numpy(),
         p50=out["y_pred_p50"].to_numpy(),
-        p90=out["y_pred_p90_raw"].to_numpy(),
+        upper=out["y_pred_p90"].to_numpy(),
+        crossing_rate_raw=float((out["y_pred_p10_raw"] > out["y_pred_p90_raw"]).mean()),
     )
-    summary["target_coverage"] = 0.80
-    summary["coverage_gap"] = float(summary["coverage_p10_p90"]) - 0.80  # type: ignore[arg-type]
+    summary["target_coverage"] = float(args.target_coverage)
+    summary["coverage_gap"] = float(summary["coverage_p10_p90"]) - float(args.target_coverage)  # type: ignore[arg-type]
+    summary["calibration_scale"] = float(scale)
+    summary["coverage_uncalibrated"] = float(summary_uncalibrated["coverage_p10_p90"])  # type: ignore[index]
+    summary["coverage_gain_after_calibration"] = float(summary["coverage_p10_p90"]) - float(summary_uncalibrated["coverage_p10_p90"])  # type: ignore[index]
 
     out.to_csv(outdir / "predictions_test_intervals.csv", index=False)
+    tmp_raw = out.copy()
+    tmp_raw["inside"] = out["inside_uncalibrated"]
+    tmp_raw["interval_width"] = out["interval_width_uncalibrated"]
+    save_group_interval_metrics(tmp_raw, "month", outdir / "coverage_by_month_test_raw.csv")
     save_group_interval_metrics(out, "month", outdir / "coverage_by_month_test.csv")
     if station_col in out.columns:
+        save_group_interval_metrics(tmp_raw, station_col, outdir / "coverage_by_station_test_raw.csv")
         save_group_interval_metrics(out, station_col, outdir / "coverage_by_station_test.csv")
+    save_json(outdir / "summary_metrics_uncalibrated.json", summary_uncalibrated)
     save_json(outdir / "summary_metrics.json", summary)
     save_json(outdir / "features_used.json", features)
     save_json(

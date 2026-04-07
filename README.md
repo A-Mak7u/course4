@@ -186,24 +186,24 @@ Run: `outputs_runs/20260327_171818_spatial_transfer_preflight`
 ### 7.1 Winter transfer (мульти-сид)
 
 Скрипт: `transfer/run_winter_transfer_multiseed.py`  
-Run: `outputs_runs/20260407_003000_volgograd_winter_multiseed_quick`
+Run: `outputs_runs/20260407_161100_volgograd_winter_multiseed_full5`
 
 Постановка:
 
 - winter-only выборка (`11,12,1,2,3`)
 - перенос `Saratov -> Volgograd`
-- `3` сида (`42/52/62`) в режимах `zero-shot`, `finetune`, `scratch`
+- `5` сидов (`42/52/62/72/82`) в режимах `zero-shot`, `finetune`, `scratch`
 
 Агрегированные test-метрики по сидам:
 
 | Ветка | R2 mean ± std | RMSE mean ± std | MAE mean ± std | n |
 |---|---:|---:|---:|---:|
-| `scratch` | 0.9759 ± 0.0004 | 0.9342 ± 0.0082 | 0.6741 ± 0.0066 | 3624 |
-| `finetune` | 0.9750 ± 0.0003 | 0.9519 ± 0.0061 | 0.6925 ± 0.0060 | 3624 |
-| `zero-shot` | 0.9438 ± 0.0016 | 1.4280 ± 0.0209 | 1.0070 ± 0.0089 | 3624 |
+| `scratch` | 0.9758 ± 0.0004 | 0.9360 ± 0.0086 | 0.6775 ± 0.0042 | 3624 |
+| `finetune` | 0.9748 ± 0.0004 | 0.9561 ± 0.0082 | 0.6955 ± 0.0064 | 3624 |
+| `zero-shot` | 0.9427 ± 0.0043 | 1.4409 ± 0.0544 | 1.0166 ± 0.0230 | 3624 |
 
 <p align="center">
-  <img src="outputs_runs/20260407_003000_volgograd_winter_multiseed_quick/rmse_by_seed.png" width="760">
+  <img src="outputs_runs/20260407_161100_volgograd_winter_multiseed_full5/rmse_by_seed.png" width="760">
 </p>
 
 Итог этапа: зимний ranking устойчив по сидам и не меняет общий вывод transfer-ветки: `scratch` лучше `finetune`, `zero-shot` заметно слабее.
@@ -211,23 +211,23 @@ Run: `outputs_runs/20260407_003000_volgograd_winter_multiseed_quick`
 ### 7.2 LOSO stress-test по станциям (Саратов)
 
 Скрипт: `transfer/saratov_loso_stress.py`  
-Run: `outputs_runs/20260407_004000_saratov_loso_quick12`
+Run: `outputs_runs/20260407_160800_saratov_loso_full14`
 
 Постановка:
 
-- `leave-one-station-out` на подмножестве из `12` станций (test `2022-2023`)
+- `leave-one-station-out` на всех `14` станциях с наблюдаемой `T` на test `2022-2023`
 - обучение на остальных станциях тем же базовым feature-набором
 
 Сводные метрики:
 
-- `RMSE_mean = 1.0974`
-- `RMSE_median = 0.8316`
-- `MAE_mean = 0.8386`
-- худшая станция: `35108`, `RMSE = 3.9920`
-- лучшая станция: `34059`, `RMSE = 0.6923`
+- `RMSE_mean = 1.0633`
+- `RMSE_median = 0.8310`
+- `MAE_mean = 0.8151`
+- худшая станция: `35108`, `RMSE = 4.0368`
+- лучшая станция: `34059`, `RMSE = 0.6927`
 
 <p align="center">
-  <img src="outputs_runs/20260407_004000_saratov_loso_quick12/rmse_by_station_loso.png" width="760">
+  <img src="outputs_runs/20260407_160800_saratov_loso_full14/rmse_by_station_loso.png" width="760">
 </p>
 
 Итог этапа: station-wise неустойчивость подтверждена в более жёсткой постановке с unseen station; основной хвост ошибки остаётся на `35108`.
@@ -235,19 +235,19 @@ Run: `outputs_runs/20260407_004000_saratov_loso_quick12`
 ### 7.3 Интервалы неопределённости (P10/P50/P90)
 
 Скрипт: `transfer/saratov_uncertainty_intervals.py`  
-Run: `outputs_runs/20260407_004800_saratov_uncertainty_quick`
+Run: `outputs_runs/20260407_161900_saratov_uncertainty_full_calibrated`
 
 Сводные test-метрики интервалов:
 
-- `coverage(P10,P90) = 0.7044`
+- `coverage(P10,P90) = 0.7209`
 - целевой coverage: `0.80`
-- `coverage_gap = -0.0956`
-- средняя ширина интервала: `2.0012`
-- `P50`: `MAE = 0.7116`, `RMSE = 1.1469`
+- `coverage_gap = -0.0791`
+- средняя ширина интервала: `2.0423`
+- `P50`: `MAE = 0.7093`, `RMSE = 1.1380`
 
 <p align="center">
-  <img src="outputs_runs/20260407_004800_saratov_uncertainty_quick/coverage_by_month_test.png" width="430">
-  <img src="outputs_runs/20260407_004800_saratov_uncertainty_quick/interval_width_hist_test.png" width="430">
+  <img src="outputs_runs/20260407_161900_saratov_uncertainty_full_calibrated/coverage_by_month_test.png" width="430">
+  <img src="outputs_runs/20260407_161900_saratov_uncertainty_full_calibrated/interval_width_hist_test.png" width="430">
 </p>
 
 Итог этапа: интервалы пока недокрывают фактическую неопределённость (coverage ниже цели), особенно по отдельным месяцам; это зафиксированная зона доработки.

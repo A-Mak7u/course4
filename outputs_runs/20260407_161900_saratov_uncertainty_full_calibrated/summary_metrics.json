@@ -1,0 +1,15 @@
+{
+  "n": 10220,
+  "coverage_p10_p90": 0.7209393346379648,
+  "interval_width_mean": 2.042294979095459,
+  "interval_width_median": 1.621612787246704,
+  "interval_width_p90": 2.7459967136383057,
+  "crossing_rate_raw": 0.00019569471624266145,
+  "mae_p50": 0.7093044835294063,
+  "rmse_p50": 1.1379676956097649,
+  "target_coverage": 0.8,
+  "coverage_gap": -0.07906066536203527,
+  "calibration_scale": 1.0000701439925974,
+  "coverage_uncalibrated": 0.7209393346379648,
+  "coverage_gain_after_calibration": 0.0
+}

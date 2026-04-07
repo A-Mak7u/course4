@@ -1,0 +1,14 @@
+{
+  "stations_evaluated": 14,
+  "RMSE_mean": 1.063272854218093,
+  "RMSE_median": 0.83102830821869,
+  "RMSE_p90": 1.0253459552978623,
+  "MAE_mean": 0.8151167783345261,
+  "worst_station_by_rmse": "35108.0",
+  "worst_station_rmse": 4.036764869537137,
+  "best_station_by_rmse": "34059.0",
+  "best_station_rmse": 0.692714167546446,
+  "input_csv": "final_2013_2023_T_ERA5_LST_daynight.csv",
+  "feature_count": 30,
+  "params_json": "outputs_runs/20250916_171729_lags123_spatial/params.json"
+}
