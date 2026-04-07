@@ -1,0 +1,2 @@
+direction,target_station_count,source_region,target_region,requested_target_stations,mode,R2,RMSE,MAE,MedAE,n,run_dir
+west_to_east,7,west,east,26,scratch,0.985672959648209,1.4688993007390745,0.8774427404982238,0.5559739112854001,5110,outputs_runs/20260407_185400_spatial_transfer_w2e_bias/west_to_east__all

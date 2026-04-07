@@ -377,6 +377,60 @@ Runs:
 
 Итог этапа: даже в усиленном прогоне интервалы остаются недокалиброванными (coverage ниже цели); рост целевого уровня с `0.80` до `0.85` расширяет интервал и улучшает фактическое покрытие, но разрыв сохраняется.
 
+### 7.9 Holdout conformal-калибровка интервалов
+
+Скрипт: `transfer/saratov_uncertainty_intervals.py`  
+Runs:
+
+- `outputs_runs/20260407_184200_saratov_uncertainty_cov80_conformal_holdout`
+- `outputs_runs/20260407_184700_saratov_uncertainty_cov85_conformal_holdout`
+
+Что изменено в постановке:
+
+- для conformal-калибровки убрана утечка по валидации
+- tuning: `2013-2019`, tune-val: `2020`
+- fit: `2013-2020`
+- calibration holdout: `2021`
+- метод: `calibration_method=conformal_monthly`
+
+Сводка test-метрик:
+
+| Run | target coverage | coverage(P10,P90) | coverage gap | coverage gain | width mean | P50 RMSE | P50 MAE |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `cov80_conformal_holdout` | 0.80 | 0.8068 | +0.0068 | +0.1161 | 2.4230 | 1.2207 | 0.7325 |
+| `cov85_conformal_holdout` | 0.85 | 0.8633 | +0.0133 | +0.1953 | 2.7139 | 1.2451 | 0.7426 |
+
+<p align="center">
+  <img src="outputs_runs/20260407_184700_saratov_uncertainty_cov85_conformal_holdout/coverage_by_month_test.png" width="430">
+  <img src="outputs_runs/20260407_184700_saratov_uncertainty_cov85_conformal_holdout/interval_width_hist_test.png" width="430">
+</p>
+
+Итог этапа: holdout-conformal калибровка закрыла целевой coverage для обоих уровней (`0.80` и `0.85`), но ценой ожидаемого расширения интервалов и небольшого ухудшения центрального прогноза `P50`.
+
+### 7.10 West->East: post-bias correction
+
+Скрипты: `transfer/xgb_transfer_experiment.py`, `transfer/spatial_transfer_preflight.py`  
+Run: `outputs_runs/20260407_185400_spatial_transfer_w2e_bias`
+
+Постановка:
+
+- только сложное направление `west -> east`
+- режимы `all`, `fewtrain05`, `fewtrain03`
+- включена `post-bias-correction` по residual на `target-train`
+- в summary добавлены пары `mode` и `mode+bias`
+
+Ключевой эффект по RMSE (test):
+
+- `all`: `zero-shot 1.7908 -> 1.7822`, `scratch 1.4689 -> 1.4689`, `finetune 1.4906 -> 1.4906`
+- `fewtrain05`: `zero-shot 1.7808 -> 1.7682`, `scratch 1.6741 -> 1.6741`, `finetune 1.6894 -> 1.6893`
+- `fewtrain03`: `zero-shot 1.7609 -> 1.7517`, `scratch 1.7740 -> 1.7741`, `finetune 1.6989 -> 1.6990`
+
+<p align="center">
+  <img src="outputs_runs/20260407_185400_spatial_transfer_w2e_bias/summary_rmse.png" width="760">
+</p>
+
+Итог этапа: station-bias correction даёт заметный плюс только для `zero-shot`; для `scratch/finetune` эффект близок к нулю и местами отрицательный.
+
 ---
 
 ## 8. Волгоград: перенос на второй регион

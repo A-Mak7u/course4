@@ -4,6 +4,7 @@ import argparse
 import datetime as dt
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from pipeline_common import (
@@ -41,6 +42,11 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--early-stopping-rounds", type=int, default=150)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output-dir", default=None)
+    parser.add_argument(
+        "--post-bias-correction",
+        action="store_true",
+        help="Применить station-bias correction по residual на target-train",
+    )
     return parser
 
 
@@ -183,24 +189,73 @@ def main() -> None:
     )
 
     summary_rows: list[dict[str, float | int | str]] = []
+    summary_rows_bias: list[dict[str, float | int | str]] = []
+
+    def compute_station_bias(
+        train_df: pd.DataFrame,
+        preds_train: np.ndarray,
+        station_col: str,
+    ) -> tuple[pd.Series, float]:
+        resid = train_df[TARGET_COLUMN].to_numpy() - preds_train
+        bias_df = pd.DataFrame({station_col: train_df[station_col].to_numpy(), "resid": resid})
+        bias_map = bias_df.groupby(station_col)["resid"].mean()
+        global_bias = float(np.mean(resid))
+        return bias_map, global_bias
+
+    def apply_station_bias(
+        df: pd.DataFrame,
+        preds: np.ndarray,
+        station_col: str,
+        bias_map: pd.Series,
+        global_bias: float,
+    ) -> np.ndarray:
+        station_bias = df[station_col].map(bias_map).fillna(global_bias).to_numpy(dtype=float)
+        return preds + station_bias
 
     if "zero-shot" in args.modes:
         print("[transfer] mode=zero-shot start", flush=True)
+        zero_preds_train, zero_metrics_train = evaluate_model(source_model, target_splits_nom["train"], common_nominal_features)
         zero_preds_test, zero_metrics_test = evaluate_model(source_model, target_splits_nom["test"], common_nominal_features)
         zero_preds_full, zero_metrics_full = evaluate_model(source_model, target_splits_nom["full"], common_nominal_features)
         mode_outdir = Path(outdir) / "zero_shot"
         save_run_bundle(
             mode_outdir,
-            metrics={"test": zero_metrics_test, "full": zero_metrics_full},
+            metrics={"train": zero_metrics_train, "test": zero_metrics_test, "full": zero_metrics_full},
             features=common_nominal_features,
             params=source_params,
             predictions={
+                "train": (target_splits_nom["train"], zero_preds_train),
                 "test": (target_splits_nom["test"], zero_preds_test),
                 "full": (target_splits_nom["full"], zero_preds_full),
             },
             station_col=target_station_col,
         )
         summary_rows.append({"mode": "zero-shot", **zero_metrics_test})
+        if args.post_bias_correction:
+            bias_map, global_bias = compute_station_bias(target_splits_nom["train"], zero_preds_train, target_station_col)
+            zero_preds_test_bias = apply_station_bias(
+                target_splits_nom["test"],
+                zero_preds_test,
+                target_station_col,
+                bias_map,
+                global_bias,
+            )
+            _, zero_metrics_test_bias = zero_preds_test_bias, {
+                "R2": float(np.nan),
+                "RMSE": float(np.nan),
+                "MAE": float(np.nan),
+                "MedAE": float(np.nan),
+                "n": int(len(zero_preds_test_bias)),
+            }
+            from pipeline_common import compute_metrics
+
+            zero_metrics_test_bias = compute_metrics(target_splits_nom["test"][TARGET_COLUMN], zero_preds_test_bias)
+            summary_rows_bias.append({"mode": "zero-shot", **zero_metrics_test_bias})
+            save_json(
+                mode_outdir / "bias_correction_meta.json",
+                {"global_bias": global_bias, "station_bias_count": int(len(bias_map))},
+            )
+            save_json(mode_outdir / "metrics_test_bias_corrected.json", zero_metrics_test_bias)
         print(f"[transfer] mode=zero-shot done test_metrics={zero_metrics_test}", flush=True)
 
     if "scratch" in args.modes:
@@ -244,6 +299,24 @@ def main() -> None:
             station_col=target_station_col,
         )
         summary_rows.append({"mode": "scratch", **scratch_metrics_test})
+        if args.post_bias_correction:
+            bias_map, global_bias = compute_station_bias(target_splits_mean["train"], scratch_preds_train, target_station_col)
+            scratch_preds_test_bias = apply_station_bias(
+                target_splits_mean["test"],
+                scratch_preds_test,
+                target_station_col,
+                bias_map,
+                global_bias,
+            )
+            from pipeline_common import compute_metrics
+
+            scratch_metrics_test_bias = compute_metrics(target_splits_mean["test"][TARGET_COLUMN], scratch_preds_test_bias)
+            summary_rows_bias.append({"mode": "scratch", **scratch_metrics_test_bias})
+            save_json(
+                mode_outdir / "bias_correction_meta.json",
+                {"global_bias": global_bias, "station_bias_count": int(len(bias_map))},
+            )
+            save_json(mode_outdir / "metrics_test_bias_corrected.json", scratch_metrics_test_bias)
         print(f"[transfer] mode=scratch done test_metrics={scratch_metrics_test}", flush=True)
 
     if "finetune" in args.modes:
@@ -261,15 +334,19 @@ def main() -> None:
             verbose_eval=50,
             progress_label="finetune_train",
         )
+        finetune_preds_train, finetune_metrics_train = evaluate_model(
+            finetune_model, target_splits_nom["train"], common_nominal_features
+        )
         finetune_preds_test, finetune_metrics_test = evaluate_model(finetune_model, target_splits_nom["test"], common_nominal_features)
         finetune_preds_full, finetune_metrics_full = evaluate_model(finetune_model, target_splits_nom["full"], common_nominal_features)
         mode_outdir = Path(outdir) / "finetune"
         save_run_bundle(
             mode_outdir,
-            metrics={"test": finetune_metrics_test, "full": finetune_metrics_full},
+            metrics={"train": finetune_metrics_train, "test": finetune_metrics_test, "full": finetune_metrics_full},
             features=common_nominal_features,
             params=finetune_params,
             predictions={
+                "train": (target_splits_nom["train"], finetune_preds_train),
                 "test": (target_splits_nom["test"], finetune_preds_test),
                 "full": (target_splits_nom["full"], finetune_preds_full),
             },
@@ -277,9 +354,29 @@ def main() -> None:
             station_col=target_station_col,
         )
         summary_rows.append({"mode": "finetune", **finetune_metrics_test})
+        if args.post_bias_correction:
+            bias_map, global_bias = compute_station_bias(target_splits_nom["train"], finetune_preds_train, target_station_col)
+            finetune_preds_test_bias = apply_station_bias(
+                target_splits_nom["test"],
+                finetune_preds_test,
+                target_station_col,
+                bias_map,
+                global_bias,
+            )
+            from pipeline_common import compute_metrics
+
+            finetune_metrics_test_bias = compute_metrics(target_splits_nom["test"][TARGET_COLUMN], finetune_preds_test_bias)
+            summary_rows_bias.append({"mode": "finetune", **finetune_metrics_test_bias})
+            save_json(
+                mode_outdir / "bias_correction_meta.json",
+                {"global_bias": global_bias, "station_bias_count": int(len(bias_map))},
+            )
+            save_json(mode_outdir / "metrics_test_bias_corrected.json", finetune_metrics_test_bias)
         print(f"[transfer] mode=finetune done test_metrics={finetune_metrics_test}", flush=True)
 
     pd.DataFrame(summary_rows).to_csv(Path(outdir) / "summary_metrics.csv", index=False)
+    if summary_rows_bias:
+        pd.DataFrame(summary_rows_bias).to_csv(Path(outdir) / "summary_metrics_bias_corrected.csv", index=False)
     save_json(
         Path(outdir) / "run_config.json",
         {
@@ -296,6 +393,7 @@ def main() -> None:
             "num_boost_round": args.num_boost_round,
             "early_stopping_rounds": args.early_stopping_rounds,
             "seed": args.seed,
+            "post_bias_correction": args.post_bias_correction,
             "source_rows": int(len(source_df)),
             "target_rows": int(len(target_df)),
         },

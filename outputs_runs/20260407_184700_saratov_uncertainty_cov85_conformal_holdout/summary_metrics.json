@@ -1,0 +1,51 @@
+{
+  "n": 10220,
+  "coverage_p10_p90": 0.8633072407045009,
+  "interval_width_mean": 2.7138814254220462,
+  "interval_width_median": 2.288694381713867,
+  "interval_width_p90": 3.6300917625427247,
+  "crossing_rate_raw": 0.0012720156555772995,
+  "mae_p50": 0.7425615776541648,
+  "rmse_p50": 1.2451257211497149,
+  "target_coverage": 0.85,
+  "calibration_method": "conformal_monthly",
+  "coverage_gap": 0.013307240704500956,
+  "coverage_uncalibrated": 0.6680039138943249,
+  "coverage_gain_after_calibration": 0.19530332681017604,
+  "calibration_delta_global": 0.4112609863281236,
+  "calibration_delta_monthly": {
+    "1": 0.4387910842895515,
+    "2": 0.46357803344726567,
+    "3": 0.6034379959106442,
+    "4": 0.47793006896972656,
+    "5": 0.5255813598632812,
+    "6": 0.284106826782228,
+    "7": 0.3930889129638686,
+    "8": 0.3407489776611321,
+    "9": 0.34154548645019567,
+    "10": 0.477995681762696,
+    "11": 0.3343486785888672,
+    "12": 0.32093734741210866
+  },
+  "calibration_delta_monthly_count": 12,
+  "monthly_calib_min_samples": 120,
+  "calibration_split_meta": {
+    "strategy": "split_conformal_holdout",
+    "tune_train_years": [
+      2013,
+      2019
+    ],
+    "tune_val_years": [
+      2020,
+      2020
+    ],
+    "fit_train_years": [
+      2013,
+      2020
+    ],
+    "calib_years": [
+      2021,
+      2021
+    ]
+  }
+}

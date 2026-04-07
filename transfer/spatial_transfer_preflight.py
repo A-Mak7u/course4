@@ -31,6 +31,13 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lat-col", default="Y_final")
     parser.add_argument("--target-max-stations-grid", nargs="+", type=int, default=[0, 5, 3])
     parser.add_argument(
+        "--directions",
+        nargs="+",
+        default=["west_to_east", "east_to_west"],
+        choices=["west_to_east", "east_to_west"],
+        help="Какие направления spatial-transfer запускать",
+    )
+    parser.add_argument(
         "--modes",
         nargs="+",
         default=["zero-shot", "finetune", "scratch"],
@@ -47,6 +54,7 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--zero-inflated-precip", action="store_true")
     parser.add_argument("--winter-only", action="store_true")
+    parser.add_argument("--post-bias-correction", action="store_true")
     parser.add_argument("--keep-case-artifacts", action="store_true")
     parser.add_argument("--output-dir", default=None)
     return parser
@@ -143,6 +151,7 @@ def run_transfer_case(
     test_end_year: int,
     zero_inflated_precip: bool,
     winter_only: bool,
+    post_bias_correction: bool,
 ) -> None:
     cmd = [
         sys.executable,
@@ -178,6 +187,8 @@ def run_transfer_case(
         cmd.append("--zero-inflated-precip")
     if winter_only:
         cmd.append("--winter-only")
+    if post_bias_correction:
+        cmd.append("--post-bias-correction")
 
     subprocess.run(cmd, cwd=PROJECT_ROOT, check=True)
 
@@ -195,6 +206,18 @@ def collect_case_summary(
         raise RuntimeError(f"Не найден summary_metrics.csv в {run_dir}")
 
     summary_df = pd.read_csv(summary_path)
+    summary_bias_path = run_dir / "summary_metrics_bias_corrected.csv"
+    summary_bias_df = pd.read_csv(summary_bias_path) if summary_bias_path.exists() else pd.DataFrame()
+    bias_by_mode: dict[str, dict[str, float | int | str]] = {}
+    if not summary_bias_df.empty:
+        for _, b_row in summary_bias_df.iterrows():
+            bias_by_mode[str(b_row["mode"])] = {
+                "R2": float(b_row["R2"]),
+                "RMSE": float(b_row["RMSE"]),
+                "MAE": float(b_row["MAE"]),
+                "MedAE": float(b_row["MedAE"]),
+                "n": int(b_row["n"]),
+            }
     rows: list[dict[str, float | int | str]] = []
     run_dir_resolved = run_dir.resolve()
     project_root_resolved = PROJECT_ROOT.resolve()
@@ -226,6 +249,25 @@ def collect_case_summary(
                 "run_dir": run_dir_label,
             }
         )
+        mode_name = str(row["mode"])
+        if mode_name in bias_by_mode:
+            b = bias_by_mode[mode_name]
+            rows.append(
+                {
+                    "direction": direction,
+                    "source_region": source_region,
+                    "target_region": target_region,
+                    "requested_target_stations": int(requested_budget),
+                    "target_station_count": target_station_count if target_station_count is not None else int(requested_budget),
+                    "mode": f"{mode_name}+bias",
+                    "R2": float(b["R2"]),
+                    "RMSE": float(b["RMSE"]),
+                    "MAE": float(b["MAE"]),
+                    "MedAE": float(b["MedAE"]),
+                    "n": int(b["n"]),
+                    "run_dir": run_dir_label,
+                }
+            )
     return rows
 
 
@@ -295,6 +337,7 @@ def main() -> None:
         "train_years": [args.train_start_year, args.train_end_year],
         "test_years": [args.test_start_year, args.test_end_year],
         "target_max_stations_grid": args.target_max_stations_grid,
+        "directions": args.directions,
         "modes": args.modes,
         "device": args.device,
         "n_trials": args.n_trials,
@@ -303,6 +346,7 @@ def main() -> None:
         "seed": args.seed,
         "zero_inflated_precip": args.zero_inflated_precip,
         "winter_only": args.winter_only,
+        "post_bias_correction": args.post_bias_correction,
         "keep_case_artifacts": args.keep_case_artifacts,
     }
     (outdir / "split_meta.json").write_text(json.dumps(split_meta, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -311,7 +355,11 @@ def main() -> None:
     full_budget = int(min(station_counts.values()))
 
     summary_rows: list[dict[str, float | int | str]] = []
-    directions = [("west", "east"), ("east", "west")]
+    direction_map = {
+        "west_to_east": ("west", "east"),
+        "east_to_west": ("east", "west"),
+    }
+    directions = [direction_map[key] for key in args.directions]
 
     with tempfile.TemporaryDirectory(prefix="spatial_transfer_") as temp_root:
         temp_root_path = Path(temp_root)
@@ -369,6 +417,7 @@ def main() -> None:
                     test_end_year=args.test_end_year,
                     zero_inflated_precip=args.zero_inflated_precip,
                     winter_only=args.winter_only,
+                    post_bias_correction=args.post_bias_correction,
                 )
                 summary_rows.extend(
                     collect_case_summary(
