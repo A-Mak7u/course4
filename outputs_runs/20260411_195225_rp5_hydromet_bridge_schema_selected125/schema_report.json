@@ -1,0 +1,16 @@
+{
+  "rows_before_validation": 462851,
+  "rows_after_validation": 462851,
+  "rows_dropped": 0,
+  "stations_after_validation": 125,
+  "date_min": "2013-01-01",
+  "date_max": "2023-12-31",
+  "pair_gap_report": {
+    "abs_diff_mean": 1.1214697602468182,
+    "abs_diff_median": 0.7000000000000011,
+    "abs_diff_max": 19.500000000000004,
+    "exact_equal_ratio": 0.07607847881931766
+  },
+  "identical_threshold": 1e-08,
+  "is_identical_overlap": false
+}

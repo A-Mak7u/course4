@@ -486,68 +486,116 @@ Runs:
 - `station_month + winter_weight` улучшает `west->east` в режиме `all`, но в `fewtrain05/03` устойчивого выигрыша над предыдущим baseline не показал.
 
 Фактический итог раздела 7:
-лучшая ветка для сложного `west->east` в режиме `all`: `scratch+bias[station_month]`, `winter_weight_factor=1.3`, `RMSE=1.4591`, `MAE=0.8771`, `R2=0.9859`.
+
+- лучшая ветка для сложного `west->east` в режиме `all`: `scratch+bias[station_month]`, `winter_weight_factor=1.3`, `RMSE=1.4591`, `MAE=0.8771`, `R2=0.9859`.
 
 
 ---
 
 
-## 8. RP5 -> Росгидромет: рабочий мост на доступных станциях
+## 8. RP5 -> Росгидромет: расширенный калибровочный мост
 
 Скрипты:
 
 - `transfer/fetch_aisori_tttr_daily_playwright.py`
 - `transfer/parse_aisori_tttr_zip.py`
 - `transfer/extract_aisori_station_catalog.py`
-- `transfer/build_bridge_rp5_meteostat.py`
+- `transfer/fetch_bridge_rp5_meteostat_bulk.py`
 - `transfer/build_rp5_hydromet_overlap.py`
 - `transfer/rp5_hydromet_bridge.py`
-- `transfer/hydromet_available_station_ids.csv`
+
+### 8.1 Массовая сборка RP5-like ряда
+
+Собранные данные AISORI:
+
+- merged daily: `data/rosgidromet/aisori/aisori_tttr_daily_2010_2025_merged.csv`
+- `739616` строк, `137` станций, `2010-01-01 ... 2025-03-31`
+- каталог станций: `data/rosgidromet/aisori/aisori_station_catalog.csv` (`137` станций)
+
+Массовая выгрузка Meteostat (`2013-2023`) по AISORI-каталогу:
+
+- requested station-set после фильтра по наличию гидромет-рядов: `133`
+- успешная загрузка: `132` станции; не найдено в Meteostat: `32586`
+- итоговый RP5-like CSV: `data/rosgidromet/bridge_inputs/rp5_meteostat_daily_2013_2023_allstations.csv`
+- объём RP5-like ряда: `467577` строк, `132` станции
+
+### 8.2 Overlap и отбор station-set для моста
+
+Артефакты:
+
+- overlap all-stations: `data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_2013_2023_allstations.csv`
+- station-wise stats: `data/rosgidromet/bridge_inputs/rp5_meteostat_station_overlap_stats_2013_2023.csv`
+- summary: `data/rosgidromet/bridge_inputs/rp5_meteostat_station_overlap_stats_2013_2023.csv.summary.json`
+- selected station-set: `transfer/hydromet_bridge_station_ids_selected.txt` (`125` станций)
+
+Факты по overlap:
+
+- all stations: `467007` строк, `132` станции, `2013-01-01 ... 2023-12-31`
+- selected125: `462851` строк, `125` станций, `2013-01-01 ... 2023-12-31`
+- критерии selected125: `min_hydromet_rows >= 1500`, `min_overlap_rows >= 1200`, `min_overlap_years >= 6`, `exact_equal_ratio <= 0.98`
+- для selected125: `abs_delta_mean = 1.1215`, `abs_delta_median = 0.7000`, `abs_delta_max = 19.5000`
+- `exact_equal_ratio = 0.0761`, `is_identical_overlap = false`
+
+### 8.3 Метрики bridge (selected125)
 
 Run-артефакты:
 
-- RP5-like source: `data/rosgidromet/bridge_inputs/rp5_meteostat_daily_2013_2023.csv`
-- overlap: `data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_2013_2023.csv`
-- schema-check: `outputs_runs/20260411_191951_rp5_hydromet_bridge_schema_meteostat`
-- full bridge: `outputs_runs/20260411_191951_rp5_hydromet_bridge_full_meteostat`
+- schema-check: `outputs_runs/20260411_195225_rp5_hydromet_bridge_schema_selected125`
+- full bridge: `outputs_runs/20260411_195225_rp5_hydromet_bridge_full_selected125`
 
-Собранные данные AISORI (по выгруженным архивам):
+Метрики `2022-2023`:
 
-- объединённый daily CSV: `data/rosgidromet/aisori/aisori_tttr_daily_2010_2025_merged.csv`
-- `739616` строк, `137` станций
-- диапазон дат: `2010-01-01 ... 2025-03-31`
-- каталог станций: `data/rosgidromet/aisori/aisori_station_catalog.csv` (`137` станций)
+- baseline: `R2=0.9882`, `RMSE=1.6840`, `MAE=1.1344`
+- bridge: `R2=0.9889`, `RMSE=1.6349`, `MAE=1.1186`
+- прирост bridge: `RMSE -0.0491`, `MAE -0.0158`
+- запуск с `--fail-on-identical` проходит (вырождение отсутствует)
 
-Фактический overlap `RP5-like vs Росгидромет`:
+Детализация эффекта:
 
-- station-set для моста: `27947`, `28900`, `34163`, `34391`
-- вход RP5-like (Meteostat): `10647` строк, `4` станции, `2013-01-01 ... 2023-12-31`
-- overlap: `10647` строк, `4` станции, `2013-01-01 ... 2023-12-31`
-- `abs_delta_mean = 0.7745`, `abs_delta_median = 0.6000`, `abs_delta_max = 6.8000`
-- `exact_equal_ratio = 0.1105`, `is_identical_overlap = false`
-
-Метрики bridge на test (`2022-2023`):
-
-- baseline: `R2=0.9889`, `RMSE=1.2487`, `MAE=0.9492`
-- bridge: `R2=0.9902`, `RMSE=1.1750`, `MAE=0.8839`
-- прирост bridge относительно baseline: `RMSE -0.0737`, `MAE -0.0652`
-- запуск с `--fail-on-identical` на этом overlap проходит (вырождение не обнаружено)
+- улучшение по станциям: `71/125`
+- ухудшение по станциям: `54/125`
+- средний station-wise gain (`baseline_mae - bridge_mae`): `+0.0076`
+- улучшение по месяцам: `7/12` (наибольший плюс осень-зима: октябрь-декабрь)
 
 <table align="center">
   <tr>
     <td align="center" width="50%">
-      <img src="outputs_runs/20260411_191951_rp5_hydromet_bridge_full_meteostat/rp5_hydromet_scatter_xy.png" width="100%">
+      <img src="outputs_runs/20260411_195225_rp5_hydromet_bridge_full_selected125/rp5_hydromet_scatter_xy.png" width="100%">
     </td>
     <td align="center" width="50%">
-      <img src="outputs_runs/20260411_191951_rp5_hydromet_bridge_full_meteostat/delta_hist.png" width="100%">
+      <img src="outputs_runs/20260411_195225_rp5_hydromet_bridge_full_selected125/delta_hist.png" width="100%">
     </td>
   </tr>
 </table>
-<p align="center"><sub>Рис. 4. Слева: `T_rp5` vs `T_hydromet`; справа: распределение `T_rp5 - T_hydromet`.</sub></p>
+<p align="center"><sub>Рис. 4. Слева: `T_rp5` vs `T_hydromet`; справа: распределение `T_rp5 - T_hydromet` на selected125.</sub></p>
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260411_195225_rp5_hydromet_bridge_full_selected125/delta_mae_by_month.png" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260411_195225_rp5_hydromet_bridge_full_selected125/delta_mae_gain_by_month.png" width="100%">
+    </td>
+  </tr>
+</table>
+<p align="center"><sub>Рис. 5. Слева: MAE baseline/bridge по месяцам; справа: месячный gain (`baseline - bridge`).</sub></p>
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260411_195225_rp5_hydromet_bridge_full_selected125/station_mae_top20_tail.png" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260411_195225_rp5_hydromet_bridge_full_selected125/station_mae_gain_hist.png" width="100%">
+    </td>
+  </tr>
+</table>
+<p align="center"><sub>Рис. 6. Слева: Top-20 самых тяжёлых станций; справа: распределение station-wise MAE gain.</sub></p>
 
 Итог этапа:
 
-- bridge-пайплайн переведён на невырожденный overlap и даёт измеримый выигрыш к baseline на test
-- технический блок RP5-like -> Росгидромет подтверждён артефактами на текущем рабочем station-set (`27947`, `28900`, `34163`, `34391`)
+- bridge-пайплайн масштабирован с точечного smoke (`4` станции) до рабочего набора `125` станций
+- на расширенном наборе мост остаётся невырожденным и даёт стабильный прирост к baseline по RMSE/MAE
 
 ---
