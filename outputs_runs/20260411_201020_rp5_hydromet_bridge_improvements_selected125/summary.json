@@ -1,0 +1,49 @@
+{
+  "input_csv": "/home/maks/Documents/course4/data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_2013_2023_allstations.csv",
+  "train_end_year": 2020,
+  "calib_year": 2021,
+  "test_start_year": 2022,
+  "test_end_year": 2023,
+  "rows": {
+    "train": 326885,
+    "calib": 45160,
+    "test": 90806,
+    "stations_total": 125
+  },
+  "variants": [
+    "baseline",
+    "ridge_global",
+    "ridge_gated",
+    "ridge_seasonal",
+    "xgb_global",
+    "xgb_gated",
+    "ridge_downweight"
+  ],
+  "best_variant_by_calib_mae": "xgb_gated",
+  "best_test_metrics": {
+    "variant": "xgb_gated",
+    "split": "test",
+    "R2": 0.9894362138909685,
+    "RMSE": 1.5932031081489115,
+    "MAE": 1.0958447458790612,
+    "MedAE": 0.7221099853515629,
+    "n": 90806
+  },
+  "baseline_test_metrics": {
+    "variant": "baseline",
+    "split": "test",
+    "R2": 0.988197880263008,
+    "RMSE": 1.6839971555320687,
+    "MAE": 1.1344283417395327,
+    "MedAE": 0.7000000000000028,
+    "n": 90806
+  },
+  "best_minus_baseline_test": {
+    "RMSE_delta": -0.09079404738315722,
+    "MAE_delta": -0.03858359586047144,
+    "R2_delta": 0.0012383336279604418
+  },
+  "ridge_gated_open_station_count": 76,
+  "xgb_gated_open_station_count": 72,
+  "ridge_heavy_station_count": 16
+}

@@ -598,4 +598,123 @@ Run-артефакты:
 - bridge-пайплайн масштабирован с точечного smoke (`4` станции) до рабочего набора `125` станций
 - на расширенном наборе мост остаётся невырожденным и даёт стабильный прирост к baseline по RMSE/MAE
 
+### 8.4 Gated bridge по станциям
+
+Скрипт: `transfer/rp5_hydromet_bridge_improvements.py`  
+Run: `outputs_runs/20260411_201020_rp5_hydromet_bridge_improvements_selected125`
+
+Постановка:
+
+- сплит: `train <= 2020`, `calib = 2021`, `test = 2022-2023`
+- gate открывается по станции, если на `calib` MAE модели лучше baseline (`T_rp5`) хотя бы на `gate_eps`
+
+Результат gated-подхода:
+
+- `ridge_gated`: gate открыт на `76` станциях
+- `xgb_gated`: gate открыт на `72` станциях
+- лучший gated-вариант: `xgb_gated` (см. 8.6)
+
+### 8.5 Seasonal bridge (cold/warm)
+
+Постановка:
+
+- отдельный `ridge` для cold-месяцев (`11,12,1,2,3`)
+- отдельный `ridge` для warm-месяцев (`4..10`)
+
+Метрики test:
+
+- `ridge_global`: `R2=0.9888`, `RMSE=1.6408`, `MAE=1.1228`
+- `ridge_seasonal`: `R2=0.9892`, `RMSE=1.6086`, `MAE=1.1097`
+- прирост seasonal vs global: `RMSE -0.0322`, `MAE -0.0132`
+
+### 8.6 Nonlinear bridge (XGBoost)
+
+Постановка:
+
+- нелинейная регрессия `XGBoost` на признаках `T_rp5 + month + sin/cos_doy + station dummies`
+- проверены `xgb_global` и `xgb_gated`
+
+Метрики test:
+
+| Вариант | R2 | RMSE | MAE |
+|---|---:|---:|---:|
+| `baseline` (`T_rp5`) | 0.9882 | 1.6840 | 1.1344 |
+| `ridge_global` | 0.9888 | 1.6408 | 1.1228 |
+| `ridge_gated` | 0.9888 | 1.6396 | 1.1149 |
+| `ridge_seasonal` | 0.9892 | 1.6086 | 1.1097 |
+| `xgb_global` | 0.9893 | 1.6039 | 1.1085 |
+| `xgb_gated` | **0.9894** | **1.5932** | **1.0958** |
+| `ridge_downweight` | 0.9888 | 1.6411 | 1.1240 |
+
+Ключевой итог:
+
+- лучший вариант по `calib` и `test`: `xgb_gated`
+- прирост `xgb_gated` vs baseline: `RMSE -0.0908`, `MAE -0.0386`
+- прирост `xgb_gated` vs `ridge_global`: `RMSE -0.0476`, `MAE -0.0270`
+- по месяцам `xgb_gated` улучшил baseline во всех `12/12` месяцах
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260411_201020_rp5_hydromet_bridge_improvements_selected125/variant_rmse_test.png" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260411_201020_rp5_hydromet_bridge_improvements_selected125/variant_mae_test.png" width="100%">
+    </td>
+  </tr>
+</table>
+<p align="center"><sub>Рис. 7. Сравнение вариантов улучшений bridge на test по RMSE и MAE.</sub></p>
+
+### 8.7 Downweight/фильтр тяжёлых станций
+
+Постановка:
+
+- тяжёлая станция: `(ridge_mae - baseline_mae) > 0.03` на `calib`
+- найдено `16` тяжёлых станций
+- в `ridge_downweight` train-сэмплы этих станций взвешены коэффициентом `0.35`
+
+Факт:
+
+- `ridge_downweight` не дал прироста относительно `ridge_global` (`RMSE +0.00035`, `MAE +0.00116`)
+- в текущей настройке downweight полезен как диагностическая ветка, но не как новая база
+
+### 8.8 Интервалы неопределённости (quantile + conformal)
+
+Постановка:
+
+- интервалы поверх лучшей point-ветки `xgb_gated`
+- калибровка на `2021`, оценка на `2022-2023`
+- сравнение двух методов: `global_quantile` (один `q` на весь набор) и `monthly_conformal` (отдельный `q` по каждому месяцу)
+
+Сводка покрытия:
+
+| Метод | Target | Achieved | Gap | Mean width |
+|---|---:|---:|---:|---:|
+| `global_quantile` | 0.80 | 0.8127 | +0.0127 | 3.6000 |
+| `monthly_conformal` | 0.80 | 0.8106 | +0.0106 | 3.6533 |
+| `global_quantile` | 0.85 | 0.8601 | +0.0101 | 4.2411 |
+| `monthly_conformal` | 0.85 | 0.8581 | +0.0081 | 4.2888 |
+| `global_quantile` | 0.90 | 0.9067 | +0.0067 | 5.2010 |
+| `monthly_conformal` | 0.90 | 0.9055 | +0.0055 | 5.2030 |
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260411_201020_rp5_hydromet_bridge_improvements_selected125/intervals_target_vs_achieved.png" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260411_201020_rp5_hydromet_bridge_improvements_selected125/intervals_monthly_coverage_085.png" width="100%">
+    </td>
+  </tr>
+</table>
+<p align="center"><sub>Рис. 8. Слева: target vs achieved coverage; справа: помесячное покрытие monthly conformal (target=0.85).</sub></p>
+
+### 8.9 Сводка улучшений по пункту 8
+
+- `gated` стратегия подтвердилась как рабочая; лучший результат дала `xgb_gated`
+- seasonal-разделение улучшает линейный bridge относительно обычного `ridge_global`
+- нелинейный bridge (`XGBoost`) даёт лучший point-прогноз на selected125
+- downweight тяжёлых станций в текущей конфигурации прироста не дал
+- uncertainty-блок закрыт: интервалы quantile/conformal калиброваны и стабильно попадают в target coverage
+
 ---
