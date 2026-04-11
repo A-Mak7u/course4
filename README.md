@@ -491,88 +491,63 @@ Runs:
 
 ---
 
-## 8. Волгоград: перенос на второй регион
 
-Скрипты: `transfer/build_volgograd_*.py`, `transfer/xgb_transfer_experiment.py`, `transfer/wait_and_run_volgograd_suite.py`  
-Run: `outputs_runs/20260327_203205_volgograd_transfer_suite`
+## 8. RP5 -> Росгидромет: рабочий мост на доступных станциях
 
-Сборка target-dataset:
+Скрипты:
 
-- исходный target собран за `2013-2023` по `13` станциям
-- после склейки `Meteostat + ERA5 + MODIS` финальный CSV содержит `34700` строк и `12` станций: `data/volgograd/processed/volgograd_final_2013_2023_T_ERA5_LST_daynight.csv`
-- одна станция выпала из финального merge из-за отсутствия пригодного `MODIS`-покрытия
+- `transfer/fetch_aisori_tttr_daily_playwright.py`
+- `transfer/parse_aisori_tttr_zip.py`
+- `transfer/extract_aisori_station_catalog.py`
+- `transfer/build_bridge_rp5_meteostat.py`
+- `transfer/build_rp5_hydromet_overlap.py`
+- `transfer/rp5_hydromet_bridge.py`
+- `transfer/hydromet_available_station_ids.csv`
 
-Постановка transfer:
+Run-артефакты:
 
-- transfer-пайплайн вынесен в `transfer/pipeline_common.py` и `transfer/xgb_transfer_experiment.py`
-- по признакам это продолжение лучшей саратовской ветки `lags123_spatial`: календарные, производные, spatial и лаги `t-1..t-3`
-- это не прямой запуск `xgb/xgb_optuna_with_lags123_spatial.py`, а общий вариант той же логики для межрегионального переноса
-- схема обучения и валидации та же, что в саратовской базе: `train = 2013-2021`, `test = 2022-2023`, внутренняя валидация на `2021`
-- `zero-shot`: обучение на саратовском датасете и прямое применение к Волгограду без переобучения
-- `finetune`: старт из саратовской модели с последующей адаптацией на Волгограде
-- `scratch`: обучение на Волгограде с нуля без переноса весов
-- для `zero-shot/finetune` используется общий для двух регионов набор признаков без `station_train_mean_T`
-- для `scratch` используется полный target-набор признаков, включая `station_train_mean_T`
-- `full`: в target-train доступны все волгоградские станции с наблюдаемой `T`
-- `fewshot_5` и `fewshot_3`: в target-train оставлены только `5` или `3` калибровочные станции
-- калибровочные станции: станции нового региона, по которым модель видит реальную `T` и может подстроиться под локальное смещение
-- три прогона нужны, чтобы отдельно проверить полный перенос, перенос при малом числе станций и нижнюю границу few-shot-адаптации
+- RP5-like source: `data/rosgidromet/bridge_inputs/rp5_meteostat_daily_2013_2023.csv`
+- overlap: `data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_2013_2023.csv`
+- schema-check: `outputs_runs/20260411_191951_rp5_hydromet_bridge_schema_meteostat`
+- full bridge: `outputs_runs/20260411_191951_rp5_hydromet_bridge_full_meteostat`
 
-Метрики test:
+Собранные данные AISORI (по выгруженным архивам):
 
-| Режим target-train | Ветка | R2 | RMSE | MAE | MedAE | n |
-|---|---|---:|---:|---:|---:|---:|
-| `full` | `zero-shot` | 0.9861 | 1.3216 | 1.0186 | 0.8103 | 8741 |
-| `full` | `finetune` | 0.9941 | 0.8621 | 0.6539 | 0.5148 | 8741 |
-| `full` | `scratch` | 0.9944 | 0.8367 | 0.6353 | 0.5015 | 8741 |
-| `fewshot_5` | `zero-shot` | 0.9844 | 1.3941 | 1.0377 | 0.7973 | 3642 |
-| `fewshot_5` | `finetune` | 0.9929 | 0.9401 | 0.7121 | 0.5659 | 3642 |
-| `fewshot_5` | `scratch` | 0.9935 | 0.8992 | 0.6895 | 0.5681 | 3642 |
-| `fewshot_3` | `zero-shot` | 0.9856 | 1.3361 | 0.9790 | 0.7470 | 2186 |
-| `fewshot_3` | `finetune` | 0.9936 | 0.8944 | 0.6827 | 0.5465 | 2186 |
-| `fewshot_3` | `scratch` | 0.9946 | 0.8187 | 0.6263 | 0.4987 | 2186 |
+- объединённый daily CSV: `data/rosgidromet/aisori/aisori_tttr_daily_2010_2025_merged.csv`
+- `739616` строк, `137` станций
+- диапазон дат: `2010-01-01 ... 2025-03-31`
+- каталог станций: `data/rosgidromet/aisori/aisori_station_catalog.csv` (`137` станций)
 
-<p align="center">
-  <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/suite_rmse.png" width="760">
-</p>
-<p align="center"><sub>Рис. 1. RMSE по трём режимам переноса и трём вариантам target-train.</sub></p>
+Фактический overlap `RP5-like vs Росгидромет`:
 
-`full` как основное сравнение по второму региону:
+- station-set для моста: `27947`, `28900`, `34163`, `34391`
+- вход RP5-like (Meteostat): `10647` строк, `4` станции, `2013-01-01 ... 2023-12-31`
+- overlap: `10647` строк, `4` станции, `2013-01-01 ... 2023-12-31`
+- `abs_delta_mean = 0.7745`, `abs_delta_median = 0.6000`, `abs_delta_max = 6.8000`
+- `exact_equal_ratio = 0.1105`, `is_identical_overlap = false`
+
+Метрики bridge на test (`2022-2023`):
+
+- baseline: `R2=0.9889`, `RMSE=1.2487`, `MAE=0.9492`
+- bridge: `R2=0.9902`, `RMSE=1.1750`, `MAE=0.8839`
+- прирост bridge относительно baseline: `RMSE -0.0737`, `MAE -0.0652`
+- запуск с `--fail-on-identical` на этом overlap проходит (вырождение не обнаружено)
 
 <table align="center">
   <tr>
     <td align="center" width="50%">
-      <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/zero_shot/scatter_test.png" width="100%">
+      <img src="outputs_runs/20260411_191951_rp5_hydromet_bridge_full_meteostat/rp5_hydromet_scatter_xy.png" width="100%">
     </td>
     <td align="center" width="50%">
-      <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/scratch/scatter_test.png" width="100%">
+      <img src="outputs_runs/20260411_191951_rp5_hydromet_bridge_full_meteostat/delta_hist.png" width="100%">
     </td>
   </tr>
 </table>
-<p align="center"><sub>Рис. 2. Слева `zero-shot`, справа `scratch`: зависимость прогноза от истинной температуры на test для `full`.</sub></p>
-
-<table align="center">
-  <tr>
-    <td align="center" width="50%">
-      <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/zero_shot/residuals_test.png" width="100%">
-    </td>
-    <td align="center" width="50%">
-      <img src="outputs_runs/20260327_203205_volgograd_transfer_suite/full/scratch/residuals_test.png" width="100%">
-    </td>
-  </tr>
-</table>
-<p align="center"><sub>Рис. 3. Слева `zero-shot`, справа `scratch`: распределение остатков на test для `full`.</sub></p>
-
-Диагностика лучшей ветки `full / scratch`:
-
-- худшие месяцы по `MAE`: январь `0.8214`, октябрь `0.7153`, март `0.7123`, апрель `0.6686`
-- худшие станции по `MAE`: `34476` `0.7890`, `34363` `0.7380`, `34357` `0.7070`, `34240` `0.7018`
+<p align="center"><sub>Рис. 4. Слева: `T_rp5` vs `T_hydromet`; справа: распределение `T_rp5 - T_hydromet`.</sub></p>
 
 Итог этапа:
 
-- перенос на второй регион подтверждён артефактами; даже `zero-shot` удерживает `R2 > 0.984` во всех трёх постановках
-- во всех подтверждённых случаях лучшим оказался `scratch`, `finetune` стабильно второй, `zero-shot` заметно слабее
-- `fewshot_3` нельзя трактовать как улучшение относительно `full`: это меньшая и более лёгкая подвыборка (`n = 2186` против `8741`)
-- лучше всего перенеслась не готовая саратовская модель, а сама схема признаков и общий пайплайн
-- при наличии локальных наблюдений для нового региона разумной базой пока остаётся `scratch` на том же наборе признаков
-- результат подтверждает переносимость подхода, но сам по себе ещё не доказывает универсальность модели: пока проверен только один новый регион
+- bridge-пайплайн переведён на невырожденный overlap и даёт измеримый выигрыш к baseline на test
+- технический блок RP5-like -> Росгидромет подтверждён артефактами на текущем рабочем station-set (`27947`, `28900`, `34163`, `34391`)
+
+---

@@ -5,6 +5,7 @@ import datetime as dt
 import json
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import Ridge
@@ -37,6 +38,73 @@ def compute_metrics(y_true: pd.Series, y_pred: np.ndarray) -> dict[str, float | 
         "MedAE": float(median_absolute_error(y_true, y_pred)),
         "n": int(len(y_true)),
     }
+
+
+def compute_pair_gap_report(df: pd.DataFrame) -> dict[str, float | None]:
+    if df.empty:
+        return {
+            "abs_diff_mean": None,
+            "abs_diff_median": None,
+            "abs_diff_max": None,
+            "exact_equal_ratio": None,
+        }
+    abs_diff = (df["T_rp5"] - df["T_hydromet"]).abs()
+    return {
+        "abs_diff_mean": float(abs_diff.mean()),
+        "abs_diff_median": float(abs_diff.median()),
+        "abs_diff_max": float(abs_diff.max()),
+        "exact_equal_ratio": float((abs_diff == 0).mean()),
+    }
+
+
+def save_diagnostic_plots(df: pd.DataFrame, monthly_df: pd.DataFrame, outdir: Path) -> None:
+    if df.empty:
+        return
+
+    outdir.mkdir(parents=True, exist_ok=True)
+    true_vals = df["T_hydromet"].to_numpy()
+    rp5_vals = df["T_rp5"].to_numpy()
+    delta = rp5_vals - true_vals
+
+    lo = float(min(rp5_vals.min(), true_vals.min()))
+    hi = float(max(rp5_vals.max(), true_vals.max()))
+    fig, ax = plt.subplots(figsize=(7, 7))
+    ax.scatter(rp5_vals, true_vals, s=8, alpha=0.25, edgecolors="none")
+    ax.plot([lo, hi], [lo, hi], linestyle="--", linewidth=1.2)
+    ax.set_xlabel("T_rp5")
+    ax.set_ylabel("T_hydromet")
+    ax.set_title("RP5 vs Росгидромет")
+    ax.grid(alpha=0.2)
+    fig.tight_layout()
+    fig.savefig(outdir / "scatter_rp5_vs_hydromet.png", dpi=140)
+    fig.savefig(outdir / "rp5_hydromet_scatter_xy.png", dpi=140)
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    ax.hist(delta, bins=60, alpha=0.9)
+    ax.axvline(0.0, linestyle="--", linewidth=1.2)
+    ax.set_xlabel("T_rp5 - T_hydromet")
+    ax.set_ylabel("count")
+    ax.set_title("Delta distribution")
+    ax.grid(alpha=0.2)
+    fig.tight_layout()
+    fig.savefig(outdir / "delta_hist.png", dpi=140)
+    plt.close(fig)
+
+    if not monthly_df.empty and {"month", "baseline_mae", "bridge_mae"}.issubset(monthly_df.columns):
+        m = monthly_df.sort_values("month").copy()
+        fig, ax = plt.subplots(figsize=(8, 4.5))
+        ax.plot(m["month"], m["baseline_mae"], marker="o", label="baseline_mae")
+        ax.plot(m["month"], m["bridge_mae"], marker="o", label="bridge_mae")
+        ax.set_xticks(range(1, 13))
+        ax.set_xlabel("month")
+        ax.set_ylabel("MAE")
+        ax.set_title("MAE by month")
+        ax.grid(alpha=0.2)
+        ax.legend()
+        fig.tight_layout()
+        fig.savefig(outdir / "delta_mae_by_month.png", dpi=140)
+        plt.close(fig)
 
 
 def add_bridge_features(df: pd.DataFrame, rp5_col: str, station_col: str) -> pd.DataFrame:
@@ -74,6 +142,17 @@ def make_parser() -> argparse.ArgumentParser:
     parser.add_argument("--test-end-year", type=int, default=2023)
     parser.add_argument("--ridge-alpha", type=float, default=1.0)
     parser.add_argument("--min-station-samples", type=int, default=10)
+    parser.add_argument(
+        "--identical-threshold",
+        type=float,
+        default=1e-8,
+        help="Порог max|T_rp5-T_hydromet| для детекции вырожденного overlap.",
+    )
+    parser.add_argument(
+        "--fail-on-identical",
+        action="store_true",
+        help="Падать, если overlap вырожденный (T_rp5 практически равна T_hydromet).",
+    )
     parser.add_argument("--output-dir", default=None)
     return parser
 
@@ -160,6 +239,21 @@ def main() -> None:
     station_counts = df["station"].value_counts()
     keep_stations = station_counts[station_counts >= args.min_station_samples].index
     df = df[df["station"].isin(keep_stations)].copy()
+    if df.empty:
+        raise RuntimeError("После фильтра min_station_samples выборка пуста")
+    pair_gap_report = compute_pair_gap_report(df)
+    is_identical_overlap = (
+        pair_gap_report["abs_diff_max"] is not None and pair_gap_report["abs_diff_max"] <= args.identical_threshold
+    )
+    if is_identical_overlap:
+        msg = (
+            "Обнаружен вырожденный overlap: max|T_rp5-T_hydromet|="
+            f"{pair_gap_report['abs_diff_max']:.6g} <= threshold={args.identical_threshold:.6g}. "
+            "Метрики bridge в таком режиме неинформативны."
+        )
+        if args.fail_on_identical:
+            raise RuntimeError(msg)
+        print(f"WARNING: {msg}")
 
     df = add_bridge_features(df, rp5_col="T_rp5", station_col="station")
     features = build_design(df, rp5_col="T_rp5")
@@ -189,7 +283,13 @@ def main() -> None:
         ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
         outdir = f"outputs_runs/{ts}_rp5_hydromet_bridge"
     ensure_dir(outdir)
-    save_json(Path(outdir) / "schema_report.json", schema_report)
+    schema_report_enriched = {
+        **schema_report,
+        "pair_gap_report": pair_gap_report,
+        "identical_threshold": float(args.identical_threshold),
+        "is_identical_overlap": bool(is_identical_overlap),
+    }
+    save_json(Path(outdir) / "schema_report.json", schema_report_enriched)
 
     if args.schema_only:
         print(f"Schema validation OK, report saved: {Path(outdir) / 'schema_report.json'}")
@@ -224,9 +324,11 @@ def main() -> None:
                 "bridge_bias": float((group["T_hydromet_hat"] - group["T_hydromet"]).mean()),
             }
         )
-    pd.DataFrame(monthly_rows).sort_values("month").to_csv(Path(outdir) / "metrics_by_month.csv", index=False)
+    monthly_df = pd.DataFrame(monthly_rows).sort_values("month")
+    monthly_df.to_csv(Path(outdir) / "metrics_by_month.csv", index=False)
 
     df.to_csv(Path(outdir) / "bridge_predictions.csv", index=False)
+    save_diagnostic_plots(df=df, monthly_df=monthly_df, outdir=Path(outdir))
     save_json(
         Path(outdir) / "metrics_summary.json",
         {
@@ -234,7 +336,9 @@ def main() -> None:
             "baseline_test": baseline_test,
             "bridge_train": bridge_train,
             "bridge_test": bridge_test,
-            "schema_report": schema_report,
+            "schema_report": schema_report_enriched,
+            "pair_gap_report": pair_gap_report,
+            "is_identical_overlap": bool(is_identical_overlap),
             "ridge_alpha": args.ridge_alpha,
             "intercept": float(model.intercept_),
             "n_features": len(features),

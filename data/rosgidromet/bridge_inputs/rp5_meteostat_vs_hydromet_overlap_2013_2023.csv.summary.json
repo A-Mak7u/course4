@@ -1,0 +1,48 @@
+{
+  "rp5_csv": "/home/maks/Documents/course4/data/rosgidromet/bridge_inputs/rp5_meteostat_daily_2013_2023.csv",
+  "hydromet_glob": "data/rosgidromet/aisori/wr*_parsed.csv",
+  "hydromet_files_used": [
+    "/home/maks/Documents/course4/data/rosgidromet/aisori/wr368077a1_parsed.csv",
+    "/home/maks/Documents/course4/data/rosgidromet/aisori/wr368083a1_parsed.csv",
+    "/home/maks/Documents/course4/data/rosgidromet/aisori/wr368084a1_parsed.csv"
+  ],
+  "output_merged_hydromet": "/home/maks/Documents/course4/data/rosgidromet/aisori/aisori_tttr_daily_2010_2025_merged.csv",
+  "output_overlap": "/home/maks/Documents/course4/data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_2013_2023.csv",
+  "dedupe_keep": "last",
+  "hydromet_rows": 739616,
+  "hydromet_stations": 137,
+  "hydromet_date_min": "2010-01-01",
+  "hydromet_date_max": "2025-03-31",
+  "rp5_rows": 10647,
+  "rp5_stations": 4,
+  "rp5_date_min": "2013-01-01",
+  "rp5_date_max": "2023-12-31",
+  "overlap_rows": 10647,
+  "overlap_stations": 4,
+  "overlap_date_min": "2013-01-01",
+  "overlap_date_max": "2023-12-31",
+  "abs_delta_mean": 0.7744528975298206,
+  "abs_delta_median": 0.5999999999999996,
+  "abs_delta_max": 6.800000000000001,
+  "exact_equal_ratio": 0.11045364891518737,
+  "overlap_rows_by_station": {
+    "28900": 3932,
+    "34163": 3320,
+    "34391": 2708,
+    "27947": 687
+  },
+  "reference_station_intersection": {
+    "reference_csv": "/home/maks/Documents/course4/transfer/hydromet_available_station_ids.csv",
+    "reference_station_col": "station_id",
+    "reference_station_count": 4,
+    "intersection_count": 4,
+    "intersection_stations": [
+      "27947",
+      "28900",
+      "34163",
+      "34391"
+    ],
+    "missing_in_hydromet_count": 0,
+    "missing_in_hydromet_stations": []
+  }
+}

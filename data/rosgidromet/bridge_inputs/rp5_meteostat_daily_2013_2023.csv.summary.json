@@ -1,0 +1,44 @@
+{
+  "output_csv": "/home/maks/Documents/course4/data/rosgidromet/bridge_inputs/rp5_meteostat_daily_2013_2023.csv",
+  "requested_station_ids": [
+    "27947",
+    "28900",
+    "34163",
+    "34391"
+  ],
+  "requested_station_count": 4,
+  "rows_total": 10647,
+  "stations_with_data": 4,
+  "date_min": "2013-01-01",
+  "date_max": "2023-12-31",
+  "rows_by_station_raw_fetch": {
+    "27947": 2878,
+    "28900": 4017,
+    "34163": 3603,
+    "34391": 3710
+  },
+  "rows_by_station_final": {
+    "28900": 3932,
+    "34163": 3320,
+    "34391": 2708,
+    "27947": 687
+  },
+  "missing_station_ids": [],
+  "hydromet_overlap_probe": {
+    "hydromet_csv": "/home/maks/Documents/course4/data/rosgidromet/aisori/aisori_tttr_daily_2010_2025_merged.csv",
+    "overlap_rows": 10647,
+    "overlap_stations": 4,
+    "overlap_date_min": "2013-01-01",
+    "overlap_date_max": "2023-12-31",
+    "abs_delta_mean": 0.7744528975298206,
+    "abs_delta_median": 0.5999999999999996,
+    "abs_delta_max": 6.800000000000001,
+    "exact_equal_ratio": 0.11045364891518737,
+    "overlap_rows_by_station": {
+      "28900": 3932,
+      "34163": 3320,
+      "34391": 2708,
+      "27947": 687
+    }
+  }
+}
