@@ -1,0 +1,13 @@
+{
+  "risk_details_csv": "/home/maks/Documents/course4/outputs_runs/20260412_130500_bridge_expanded_min10_v2/station_risk_details_test.csv",
+  "global_variant": "xgb_delta_global",
+  "gated_variant": "xgb_delta_gated",
+  "stations_total": 132,
+  "heavy_station_count_global": 37,
+  "recovered_by_gated_count": 30,
+  "still_worse_after_gated_count": 7,
+  "global_worse_count": 37,
+  "gated_worse_count": 7,
+  "mean_safeguard_delta_all": 0.0043008893103053825,
+  "mean_safeguard_delta_heavy_only": 0.020525264431401513
+}

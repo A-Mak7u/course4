@@ -1,0 +1,5 @@
+cluster_id,train_rows,calib_rows,test_rows,status
+0,127492,17382,35012,trained
+1,102780,13428,26838,trained
+2,93691,13985,28226,trained
+3,2922,365,730,trained

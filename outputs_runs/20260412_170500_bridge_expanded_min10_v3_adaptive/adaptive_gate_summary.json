@@ -1,0 +1,9 @@
+{
+  "adaptive_gate_enabled": true,
+  "base_eps": 0.005,
+  "adaptive_eps_mean": 0.009801630337950697,
+  "adaptive_eps_median": 0.006959844978024748,
+  "rolling_penalty": 0.0019598449780247476,
+  "gate_open_constant_count": 89,
+  "gate_open_adaptive_count": 85
+}

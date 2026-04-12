@@ -1,0 +1,188 @@
+{
+  "input_csv": "/home/maks/Documents/course4/data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_expanded_min10_2013_2023.csv",
+  "train_end_year": 2020,
+  "calib_year": 2021,
+  "test_start_year": 2022,
+  "test_end_year": 2023,
+  "rows": {
+    "train": 328031,
+    "calib": 47005,
+    "test": 91971,
+    "stations_total": 132
+  },
+  "variants": [
+    "baseline",
+    "ridge_global",
+    "ridge_gated",
+    "ridge_gated_station_month",
+    "ridge_soft_station",
+    "ridge_soft_station_month",
+    "ridge_seasonal",
+    "xgb_global",
+    "xgb_delta_global",
+    "xgb_delta_clustered_v2",
+    "xgb_delta_gated",
+    "xgb_delta_gated_adaptive",
+    "xgb_delta_gated_station_month",
+    "xgb_delta_gated_adaptive_safeguard",
+    "xgb_delta_clustered_v2_gated",
+    "xgb_delta_clustered_v2_gated_adaptive",
+    "xgb_delta_clustered_v3",
+    "xgb_delta_clustered_v3_gated",
+    "xgb_delta_clustered_v3_gated_adaptive",
+    "xgb_gated",
+    "xgb_gated_station_month",
+    "xgb_soft_station",
+    "xgb_soft_station_month",
+    "ridge_downweight"
+  ],
+  "best_variant_by_calib_mae": "xgb_delta_gated_station_month",
+  "best_variant_by_test_rmse": "xgb_delta_gated_adaptive_safeguard",
+  "best_variant_by_test_mae": "xgb_delta_gated_adaptive_safeguard",
+  "best_test_metrics": {
+    "variant": "xgb_delta_gated_station_month",
+    "split": "test",
+    "R2": 0.9888580522215421,
+    "RMSE": 1.6329311989937108,
+    "MAE": 1.0999988140866248,
+    "MedAE": 0.7149464190006256,
+    "n": 91971
+  },
+  "best_test_rmse_metrics": {
+    "variant": "xgb_delta_gated_adaptive_safeguard",
+    "split": "test",
+    "R2": 0.9890326847024092,
+    "RMSE": 1.6200838474883004,
+    "MAE": 1.095288460397902,
+    "MedAE": 0.7239233493804935,
+    "n": 91971
+  },
+  "best_test_mae_metrics": {
+    "variant": "xgb_delta_gated_adaptive_safeguard",
+    "split": "test",
+    "R2": 0.9890326847024092,
+    "RMSE": 1.6200838474883004,
+    "MAE": 1.095288460397902,
+    "MedAE": 0.7239233493804935,
+    "n": 91971
+  },
+  "baseline_test_metrics": {
+    "variant": "baseline",
+    "split": "test",
+    "R2": 0.9875624198145161,
+    "RMSE": 1.7252628641133727,
+    "MAE": 1.1444216111600396,
+    "MedAE": 0.7999999999999972,
+    "n": 91971
+  },
+  "best_minus_baseline_test": {
+    "RMSE_delta": -0.09233166511966195,
+    "MAE_delta": -0.04442279707341479,
+    "R2_delta": 0.001295632407026015
+  },
+  "ridge_gated_open_station_count": 71,
+  "ridge_gated_open_station_month_count": 824,
+  "xgb_gated_open_station_count": 69,
+  "xgb_gated_open_station_month_count": 825,
+  "xgb_delta_gated_open_station_count": 89,
+  "xgb_delta_gated_adaptive_open_station_count": 85,
+  "xgb_delta_gated_open_station_month_count": 897,
+  "xgb_delta_clustered_v2_gated_open_station_count": 85,
+  "xgb_delta_clustered_v2_gated_adaptive_open_station_count": 74,
+  "xgb_delta_clustered_v3_gated_open_station_count": 82,
+  "xgb_delta_clustered_v3_gated_adaptive_open_station_count": 73,
+  "cluster_bridge_groups": 4,
+  "cluster_bridge_min_train_rows": 1200,
+  "cluster_bridge_trained_cluster_count": 3,
+  "cluster_bridge_fallback_cluster_count": 1,
+  "cluster_v3_groups": 5,
+  "cluster_v3_min_train_rows": 1200,
+  "cluster_v3_trained_cluster_count": 3,
+  "cluster_v3_fallback_cluster_count": 2,
+  "ridge_heavy_station_count": 16,
+  "min_station_month_samples": 15,
+  "conformal_station_groups": 4,
+  "conformal_min_group_month_samples": 10,
+  "adaptive_gate_summary": {
+    "adaptive_gate_enabled": true,
+    "base_eps": 0.005,
+    "adaptive_eps_mean": 0.009801630337950697,
+    "adaptive_eps_median": 0.006959844978024748,
+    "rolling_penalty": 0.0019598449780247476,
+    "gate_open_constant_count": 89,
+    "gate_open_adaptive_count": 85
+  },
+  "safeguard_summary": {
+    "margin": 0.002,
+    "stations_total": 132,
+    "fallback_station_count": 82,
+    "fallback_baseline_count": 43,
+    "fallback_seasonal_count": 39
+  },
+  "station_risk_summary": {
+    "xgb_delta_gated": {
+      "variant": "xgb_delta_gated",
+      "stations_total": 132,
+      "improved_station_count": 82,
+      "worsened_station_count": 7,
+      "mean_mae_gain": 0.046700842403347945,
+      "median_mae_gain": 0.014271442361791009
+    },
+    "xgb_delta_gated_adaptive": {
+      "variant": "xgb_delta_gated_adaptive",
+      "stations_total": 132,
+      "improved_station_count": 80,
+      "worsened_station_count": 5,
+      "mean_mae_gain": 0.046190690171286665,
+      "median_mae_gain": 0.012822446672952181
+    },
+    "xgb_delta_gated_adaptive_safeguard": {
+      "variant": "xgb_delta_gated_adaptive_safeguard",
+      "stations_total": 132,
+      "improved_station_count": 83,
+      "worsened_station_count": 6,
+      "mean_mae_gain": 0.05161700143296447,
+      "median_mae_gain": 0.013133283753715141
+    },
+    "xgb_delta_clustered_v2_gated": {
+      "variant": "xgb_delta_clustered_v2_gated",
+      "stations_total": 132,
+      "improved_station_count": 77,
+      "worsened_station_count": 8,
+      "mean_mae_gain": 0.04430003824711329,
+      "median_mae_gain": 0.010799744602438932
+    },
+    "xgb_delta_clustered_v3_gated": {
+      "variant": "xgb_delta_clustered_v3_gated",
+      "stations_total": 132,
+      "improved_station_count": 76,
+      "worsened_station_count": 6,
+      "mean_mae_gain": 0.04452074470316311,
+      "median_mae_gain": 0.007802527198434106
+    }
+  },
+  "rolling_origin_enabled": true,
+  "loso_enabled": true,
+  "rolling_origin_rows": 4,
+  "loso_rows": 132,
+  "recommended_runtime_config": {
+    "gate_eps": 0.005,
+    "adaptive_gate_enabled": true,
+    "conformal_station_groups": 4,
+    "conformal_min_group_month_samples": 10
+  },
+  "soft_scale_grid": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    3.0,
+    4.0
+  ],
+  "selected_soft_scales": {
+    "ridge_soft_station": 4.0,
+    "ridge_soft_station_month": 4.0,
+    "xgb_soft_station": 4.0,
+    "xgb_soft_station_month": 4.0
+  }
+}

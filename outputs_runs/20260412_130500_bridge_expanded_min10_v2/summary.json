@@ -1,0 +1,133 @@
+{
+  "input_csv": "/home/maks/Documents/course4/data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_expanded_min10_2013_2023.csv",
+  "train_end_year": 2020,
+  "calib_year": 2021,
+  "test_start_year": 2022,
+  "test_end_year": 2023,
+  "rows": {
+    "train": 328031,
+    "calib": 47005,
+    "test": 91971,
+    "stations_total": 132
+  },
+  "variants": [
+    "baseline",
+    "ridge_global",
+    "ridge_gated",
+    "ridge_gated_station_month",
+    "ridge_soft_station",
+    "ridge_soft_station_month",
+    "ridge_seasonal",
+    "xgb_global",
+    "xgb_delta_global",
+    "xgb_delta_clustered_v2",
+    "xgb_delta_gated",
+    "xgb_delta_gated_station_month",
+    "xgb_delta_clustered_v2_gated",
+    "xgb_gated",
+    "xgb_gated_station_month",
+    "xgb_soft_station",
+    "xgb_soft_station_month",
+    "ridge_downweight"
+  ],
+  "best_variant_by_calib_mae": "xgb_delta_gated_station_month",
+  "best_variant_by_test_rmse": "xgb_delta_gated",
+  "best_variant_by_test_mae": "xgb_delta_gated",
+  "best_test_metrics": {
+    "variant": "xgb_delta_gated_station_month",
+    "split": "test",
+    "R2": 0.9888580522215421,
+    "RMSE": 1.6329311989937108,
+    "MAE": 1.0999988140866248,
+    "MedAE": 0.7149464190006256,
+    "n": 91971
+  },
+  "best_test_rmse_metrics": {
+    "variant": "xgb_delta_gated",
+    "split": "test",
+    "R2": 0.9889507918124324,
+    "RMSE": 1.6261211773746538,
+    "MAE": 1.0969164235121938,
+    "MedAE": 0.7208329260349271,
+    "n": 91971
+  },
+  "best_test_mae_metrics": {
+    "variant": "xgb_delta_gated",
+    "split": "test",
+    "R2": 0.9889507918124324,
+    "RMSE": 1.6261211773746538,
+    "MAE": 1.0969164235121938,
+    "MedAE": 0.7208329260349271,
+    "n": 91971
+  },
+  "baseline_test_metrics": {
+    "variant": "baseline",
+    "split": "test",
+    "R2": 0.9875624198145161,
+    "RMSE": 1.7252628641133727,
+    "MAE": 1.1444216111600396,
+    "MedAE": 0.7999999999999972,
+    "n": 91971
+  },
+  "best_minus_baseline_test": {
+    "RMSE_delta": -0.09233166511966195,
+    "MAE_delta": -0.04442279707341479,
+    "R2_delta": 0.001295632407026015
+  },
+  "ridge_gated_open_station_count": 71,
+  "ridge_gated_open_station_month_count": 824,
+  "xgb_gated_open_station_count": 69,
+  "xgb_gated_open_station_month_count": 825,
+  "xgb_delta_gated_open_station_count": 89,
+  "xgb_delta_gated_open_station_month_count": 897,
+  "xgb_delta_clustered_v2_gated_open_station_count": 85,
+  "cluster_bridge_groups": 4,
+  "cluster_bridge_min_train_rows": 1200,
+  "cluster_bridge_trained_cluster_count": 3,
+  "cluster_bridge_fallback_cluster_count": 1,
+  "ridge_heavy_station_count": 16,
+  "min_station_month_samples": 15,
+  "conformal_station_groups": 4,
+  "conformal_min_group_month_samples": 10,
+  "station_risk_summary": {
+    "xgb_delta_gated": {
+      "variant": "xgb_delta_gated",
+      "stations_total": 132,
+      "improved_station_count": 82,
+      "worsened_station_count": 7,
+      "mean_mae_gain": 0.046700842403347945,
+      "median_mae_gain": 0.014271442361791009
+    },
+    "xgb_delta_clustered_v2_gated": {
+      "variant": "xgb_delta_clustered_v2_gated",
+      "stations_total": 132,
+      "improved_station_count": 77,
+      "worsened_station_count": 8,
+      "mean_mae_gain": 0.04430003824711329,
+      "median_mae_gain": 0.010799744602438932
+    }
+  },
+  "rolling_origin_enabled": true,
+  "loso_enabled": true,
+  "rolling_origin_rows": 4,
+  "loso_rows": 132,
+  "recommended_runtime_config": {
+    "gate_eps": 0.005,
+    "conformal_station_groups": 4,
+    "conformal_min_group_month_samples": 10
+  },
+  "soft_scale_grid": [
+    0.5,
+    1.0,
+    1.5,
+    2.0,
+    3.0,
+    4.0
+  ],
+  "selected_soft_scales": {
+    "ridge_soft_station": 4.0,
+    "ridge_soft_station_month": 4.0,
+    "xgb_soft_station": 4.0,
+    "xgb_soft_station_month": 4.0
+  }
+}

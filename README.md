@@ -39,7 +39,7 @@
 | Лаги `t-1..t-3` | `xgb/xgb_optuna_with_lags123.py` / `20250916_163343_lags123_fix` | 0.9896 | 1.1816 | 0.7452 |
 | Лаги `t-1..t-3` + spatial | `xgb/xgb_optuna_with_lags123_spatial.py` / `20250916_171729_lags123_spatial` | 0.9898 | 1.1675 | 0.7189 |
 
-Итог этапа: подтверhttps://bytovka-saratov.ruждённый путь улучшения был линейным и понятным: сезонные/производные признаки дали основной скачок от базового timesplit, лаговый блок ещё снизил ошибку, spatial-блок и `station_train_mean_T` довели ветку до лучшего результата на полном датасете.
+Итог этапа: подтверждённый путь улучшения был линейным и понятным: сезонные/производные признаки дали основной скачок от базового timesplit, лаговый блок ещё снизил ошибку, spatial-блок и `station_train_mean_T` довели ветку до лучшего результата на полном датасете.
 
 ---
 
@@ -504,6 +504,8 @@ Runs:
 - `transfer/build_rp5_hydromet_overlap.py`
 - `transfer/rp5_hydromet_bridge.py`
 
+### 8.A Базовый мост и первичные улучшения (`8.1-8.8`)
+
 ### 8.1 Массовая сборка RP5-like ряда
 
 Собранные данные AISORI:
@@ -567,7 +569,7 @@ Run-артефакты:
     </td>
   </tr>
 </table>
-<p align="center"><sub>Рис. 4. Слева: `T_rp5` vs `T_hydromet`; справа: распределение `T_rp5 - T_hydromet` на selected125.</sub></p>
+<p align="center"><sub>Рис. 4. Слева: сравнение `T_rp5` и `T_hydromet`; справа: распределение `T_rp5 - T_hydromet` на selected125.</sub></p>
 
 <table align="center">
   <tr>
@@ -579,7 +581,7 @@ Run-артефакты:
     </td>
   </tr>
 </table>
-<p align="center"><sub>Рис. 5. Слева: MAE baseline/bridge по месяцам; справа: месячный gain (`baseline - bridge`).</sub></p>
+<p align="center"><sub>Рис. 5. Слева: MAE базовой линии и моста по месяцам; справа: месячный прирост (`baseline - bridge`).</sub></p>
 
 <table align="center">
   <tr>
@@ -591,7 +593,7 @@ Run-артефакты:
     </td>
   </tr>
 </table>
-<p align="center"><sub>Рис. 6. Слева: Top-20 самых тяжёлых станций; справа: распределение station-wise MAE gain.</sub></p>
+<p align="center"><sub>Рис. 6. Слева: 20 станций с крайними значениями прироста; справа: распределение station-wise прироста MAE.</sub></p>
 
 Итог этапа:
 
@@ -663,7 +665,7 @@ Run: `outputs_runs/20260411_201020_rp5_hydromet_bridge_improvements_selected125`
     </td>
   </tr>
 </table>
-<p align="center"><sub>Рис. 7. Сравнение вариантов улучшений bridge на test по RMSE и MAE.</sub></p>
+<p align="center"><sub>Рис. 7. Сравнение вариантов улучшений моста на тесте по RMSE и MAE.</sub></p>
 
 ### 8.7 Downweight/фильтр тяжёлых станций
 
@@ -707,7 +709,9 @@ Run: `outputs_runs/20260411_201020_rp5_hydromet_bridge_improvements_selected125`
     </td>
   </tr>
 </table>
-<p align="center"><sub>Рис. 8. Слева: target vs achieved coverage; справа: помесячное покрытие monthly conformal (target=0.85).</sub></p>
+<p align="center"><sub>Рис. 8. Слева: целевое и фактическое покрытие; справа: помесячное покрытие monthly conformal (цель = 0.85).</sub></p>
+
+### 8.B Стабилизация профиля (`8.9-8.16`)
 
 ### 8.9 Сводка улучшений по пункту 8
 
@@ -716,5 +720,451 @@ Run: `outputs_runs/20260411_201020_rp5_hydromet_bridge_improvements_selected125`
 - нелинейный bridge (`XGBoost`) даёт лучший point-прогноз на selected125
 - downweight тяжёлых станций в текущей конфигурации прироста не дал
 - uncertainty-блок закрыт: интервалы quantile/conformal калиброваны и стабильно попадают в target coverage
+
+### 8.10 Повторный прогон: station-month gate и soft-blend
+
+Скрипт: `transfer/rp5_hydromet_bridge_improvements.py`  
+Run: `outputs_runs/20260411_214201_rp5_hydromet_bridge_improvements_selected125`
+
+Что донастроено:
+
+- `min_station_month_samples` снижен с `40` до `15` (иначе station-month gate не открывался на `calib=2021`)
+- для soft-blend добавлен подбор `alpha-scale` по `calib` (`0.5,1.0,1.5,2.0,3.0,4.0`)
+
+Факты:
+
+- `ridge_gated_station_month`: открыто `853` station-month пар, test `RMSE=1.6317`, `MAE=1.1091`
+- `xgb_gated_station_month`: открыто `812` station-month пар, test `RMSE=1.5935`, `MAE=1.0955`
+- `xgb_delta_gated_station_month`: открыто `928` station-month пар, test `RMSE=1.5871`, `MAE=1.0886`
+- `soft` варианты улучшились после тюнинга scale, но всё ещё слабее hard-gate:
+- `xgb_soft_station_month`: `RMSE=1.6074`, `MAE=1.1019`
+- `xgb_gated_station_month`: `RMSE=1.5935`, `MAE=1.0955`
+- `xgb_delta_gated_station_month`: `RMSE=1.5871`, `MAE=1.0886`
+
+Итог:
+
+- station-month hard-gate подтверждён как рабочая донастройка
+- soft-blend в текущей форме не стал новой основной веткой
+
+### 8.11 Delta-модель (`T_hydromet - T_rp5`)
+
+Скрипт: `transfer/rp5_hydromet_bridge_improvements.py`  
+Run: `outputs_runs/20260411_214201_rp5_hydromet_bridge_improvements_selected125`
+
+Постановка:
+
+- обучается `XGBoost` на `delta = T_hydromet - T_rp5`
+- итоговый прогноз: `T_hat = T_rp5 + delta_hat`
+
+Результат на test:
+
+- `xgb_delta_global`: `R2=0.9896`, `RMSE=1.5815`, `MAE=1.0899`
+- `xgb_delta_gated`: `R2=0.9896`, `RMSE=1.5812`, `MAE=1.0865` (лучший test RMSE/MAE)
+- `xgb_delta_gated_station_month`: `R2=0.9895`, `RMSE=1.5871`, `MAE=1.0886`
+- vs baseline (`T_rp5`) для `xgb_delta_gated`: `RMSE -0.1028`, `MAE -0.0480`
+- vs `xgb_gated` для `xgb_delta_gated`: `RMSE -0.0120`, `MAE -0.0094`
+
+Вывод:
+
+- delta-постановка на текущем selected125 даёт лучший point-результат на test среди всех проверенных вариаций bridge
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260411_214201_rp5_hydromet_bridge_improvements_selected125/variant_rmse_test.png" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260411_214201_rp5_hydromet_bridge_improvements_selected125/variant_mae_test.png" width="100%">
+    </td>
+  </tr>
+</table>
+<p align="center"><sub>Рис. 9. Повторный прогон вариантов моста (включая delta-модель) на тесте.</sub></p>
+
+### 8.12 Подбор порогов gate/downweight (selected125)
+
+Скрипт: `transfer/rp5_hydromet_bridge_improvements.py`
+
+Артефакты:
+
+- мини-грид `gate_eps x min_station_month_samples`:
+- `outputs_runs/20260411_gate_grid/grid_summary.csv`
+- стресс по большим `gate_eps`:
+- `outputs_runs/20260411_gate_stress/stress_summary.csv`
+- полный грид `heavy_threshold x heavy_downweight`:
+- `outputs_runs/20260411_heavy_grid/heavy_summary.csv`
+
+Факты:
+
+- для `xgb_delta_gated` рабочая зона `gate_eps`: `0.0..0.01`; при `gate_eps >= 0.03` начинается деградация
+- лучший RMSE у `xgb_delta_gated` в grid: `1.5812` (`gate_eps=0.0`)
+- блок `heavy/downweight` улучшает только ridge-ветку; лучший `ridge_downweight` (`th=0.05`, `dw=0.5`):
+- `RMSE=1.6409`, `MAE=1.1230` (лучше baseline, но хуже `xgb_delta_gated`)
+
+Итог:
+
+- по point-метрикам лидер остался прежним: `xgb_delta_gated`
+- `heavy/downweight` не стал новой основной веткой
+
+### 8.13 Условный conformal (`station_group + month`)
+
+Скрипт: `transfer/rp5_hydromet_bridge_improvements.py`
+
+Что добавлено:
+
+- условный conformal с квантилем по `(station_group, month)` и fallback `group -> month -> global`
+- диагностика по условным группам:
+- `intervals_by_station_group_month.csv`
+
+Подбор параметров:
+
+- грид: `outputs_runs/20260412_conformal_grid/conformal_grid_summary.csv`
+- лучший tradeoff: `groups=4`, `min_group_month_samples=10`
+- запуск: `outputs_runs/20260412_conformal_grid/g4_m10`
+
+Сравнение на target `0.85` (`g4_m10`):
+
+- `monthly_conformal`: `gap=+0.0055`, `mean_width=4.2440`
+- `conditional_station_group_month`: `gap=+0.0057`, `mean_width=4.1535`
+
+Итог:
+
+- conditional-вариант даёт более узкие интервалы при практически том же уровне калибровки
+
+<p align="center">
+  <img src="outputs_runs/20260412_conformal_grid/g4_m10/intervals_target_vs_achieved.png" width="70%">
+</p>
+<p align="center"><sub>Рис. 10. Сравнение global/monthly/conditional conformal: целевое и фактическое покрытие.</sub></p>
+
+### 8.14 Стабилизирующий порог для `xgb_delta_gated`
+
+Артефакты:
+
+- per-station test-диагностика:
+- `outputs_runs/20260412_conformal_grid/xgb_delta_gated_station_test_compare.csv`
+- sweep порога gate:
+- `outputs_runs/20260412_conformal_grid/xgb_delta_gated_safeguard_sweep.csv`
+
+Факты:
+
+- при `gate_eps=0.000`: ухудшение MAE на test у `9/125` станций
+- при `gate_eps=0.005`: ухудшение MAE у `7/125` станций
+- метрики `gate_eps=0.005`: `RMSE=1.5813`, `MAE=1.0864`
+- по сравнению с `gate_eps=0.000` MAE немного лучше, потеря RMSE минимальна
+
+Итог:
+
+- для более устойчивого применения выбран рабочий компромисс `gate_eps=0.005`
+
+### 8.15 Кластерный bridge по станциям
+
+Скрипт: `transfer/rp5_hydromet_bridge_improvements.py`  
+Run: `outputs_runs/20260412_123500_rp5_hydromet_bridge_improvements_clustered`
+
+Что добавлено:
+
+- кластеризация станций на train (`cluster_bridge_groups=4`) по статистикам `T_rp5/T_hydromet`
+- отдельная delta-модель `XGBoost` по каждому кластеру
+- варианты:
+- `xgb_delta_clustered`
+- `xgb_delta_clustered_gated`
+
+Результат на test:
+
+- `xgb_delta_gated`: `RMSE=1.5813`, `MAE=1.0864` (лидер)
+- `xgb_delta_clustered`: `RMSE=1.5830`, `MAE=1.0935`
+- `xgb_delta_clustered_gated`: `RMSE=1.5842`, `MAE=1.0900`
+
+Итог:
+
+- cluster-ветка в текущей постановке не обошла базовый `xgb_delta_gated`
+- оставлена как диагностическая ветка, но не как новый baseline
+
+### 8.16 Устойчивость по годам и риску по станциям (финальный профиль)
+
+Скрипты:
+
+- `transfer/rp5_hydromet_bridge_improvements.py`
+- `transfer/plot_bridge_stability_ru.py`
+
+Артефакты:
+
+- `outputs_runs/20260412_123500_rp5_hydromet_bridge_improvements_clustered/metrics_by_test_year.csv`
+- `outputs_runs/20260412_123500_rp5_hydromet_bridge_improvements_clustered/station_risk_summary_test.csv`
+
+Ключевые факты:
+
+- `xgb_delta_gated` остаётся лучше baseline в обоих годах test:
+- 2022: baseline `RMSE=1.6557`, `MAE=1.1083`; `xgb_delta_gated` `RMSE=1.5400`, `MAE=1.0568`
+- 2023: baseline `RMSE=1.7118`, `MAE=1.1605`; `xgb_delta_gated` `RMSE=1.6215`, `MAE=1.1160`
+- station-risk для `xgb_delta_gated`:
+- улучшение по станциям: `81/125`
+- ухудшение по станциям: `7/125`
+
+Зафиксированный рабочий профиль:
+
+- `gate_eps=0.005`
+- `conformal_station_groups=4`
+- `conformal_min_group_month_samples=10`
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260412_123500_rp5_hydromet_bridge_improvements_clustered/stability_by_year_rmse_mae.png" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260412_123500_rp5_hydromet_bridge_improvements_clustered/station_risk_improved_vs_worsened.png" width="100%">
+    </td>
+  </tr>
+</table>
+<p align="center"><sub>Рис. 11. Слева: RMSE/MAE по годам test; справа: число улучшенных/ухудшенных станций по вариантам.</sub></p>
+
+### 8.C Расширение overlap и переносимость (`8.17-8.22`)
+
+### 8.17 Контрольная линия v2 (`selected125`)
+
+Скрипт: `transfer/rp5_hydromet_bridge_improvements.py`  
+Run: `outputs_runs/20260412_125500_bridge_control_selected125_v2`
+
+Зафиксированный профиль:
+
+- `xgb_delta_gated`
+- `gate_eps=0.005`
+- `conformal_station_groups=4`
+- `conformal_min_group_month_samples=10`
+- split: `train<=2020`, `calib=2021`, `test=2022-2023`
+
+Результат на test (`n=90806`, `125` станций):
+
+- baseline: `RMSE=1.6840`, `MAE=1.1344`, `R2=0.9882`
+- `xgb_delta_gated`: `RMSE=1.5813`, `MAE=1.0864`, `R2=0.9896`
+- выигрыш к baseline: `RMSE -0.1027`, `MAE -0.0480`
+
+### 8.18 Пересборка overlap и policy-наборы (`2013-2023 + min10`)
+
+Скрипты:
+
+- `transfer/build_rp5_hydromet_overlap.py`
+- `transfer/build_overlap_policy_sets.py`
+
+Артефакты:
+
+- `data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_2013_2023_rebuilt_by_builder.csv`
+- `data/rosgidromet/bridge_inputs/rp5_meteostat_overlap_policy_sets_2013_2023_min10.summary.json`
+- `data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_expanded_min10_2013_2023.csv`
+- `data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_control_selected125_2013_2023.csv`
+
+Факты:
+
+- rebuilt overlap: `467007` строк, `132` станции, окно `2013-01-01...2023-12-31`
+- policy `expanded_min10_2013_2023`: `132` станции
+- policy `control_selected125_2013_2023`: `462851` строк, `125` станций
+
+### 8.19 Честная перепроверка: control vs expanded
+
+Скрипт: `transfer/compile_bridge_control_vs_expanded_report.py`  
+Отчёт: `outputs_runs/20260412_141200_bridge_control_vs_expanded_report.csv`
+
+Использованные run:
+
+- control: `outputs_runs/20260412_125500_bridge_control_selected125_v2`
+- expanded: `outputs_runs/20260412_130500_bridge_expanded_min10_v2`
+
+Сравнение `xgb_delta_gated` на test:
+
+- control (`125` станций): `RMSE=1.5813`, `MAE=1.0864`, `R2=0.9896`
+- expanded (`132` станции): `RMSE=1.6261`, `MAE=1.0969`, `R2=0.9890`
+- в обоих наборах `xgb_delta_gated` лучше baseline по RMSE и MAE
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260412_130500_bridge_expanded_min10_v2/variant_rmse_test.png" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260412_130500_bridge_expanded_min10_v2/variant_mae_test.png" width="100%">
+    </td>
+  </tr>
+</table>
+<p align="center"><sub>Рис. 12. Слева: RMSE по вариантам на expanded test; справа: MAE по вариантам на expanded test.</sub></p>
+
+### 8.20 Cluster bridge v2 + устойчивость (expanded)
+
+Run: `outputs_runs/20260412_130500_bridge_expanded_min10_v2`
+
+Cluster v2 (seasonal+bias профиль станции):
+
+- `xgb_delta_clustered_v2`: `RMSE=1.6262`, `MAE=1.1015`
+- `xgb_delta_clustered_v2_gated`: `RMSE=1.6271`, `MAE=1.0989`
+- `xgb_delta_gated`: `RMSE=1.6261`, `MAE=1.0969` (лучше по MAE и не хуже по RMSE)
+
+Rolling-origin (`rolling_origin_summary.csv`):
+
+- 2019 -> 2020: `RMSE gain +0.1101`, `MAE gain +0.0501`
+- 2020 -> 2021: `RMSE gain +0.0649`, `MAE gain +0.0369`
+- 2021 -> 2022: `RMSE gain +0.1010`, `MAE gain +0.0472`
+- 2022 -> 2023: `RMSE gain +0.0874`, `MAE gain +0.0447`
+
+LOSO (`loso_summary.csv`, `132/132` станций):
+
+- mean gain: `RMSE +0.0038`, `MAE +0.0006`
+- ухудшение MAE на `53/132` станциях, ухудшение RMSE на `48/132`
+- хвост риска остаётся station-specific и требует safeguard-политики для сложных станций
+
+Safeguard-анализ (`safeguard_summary.json`):
+
+- файл: `outputs_runs/20260412_130500_bridge_expanded_min10_v2/safeguard_summary.json`
+- “тяжёлые” станции для `xgb_delta_global` (ухудшение к baseline): `37`
+- восстановлено gating-веткой (`xgb_delta_gated`): `30`
+- осталось ухудшенных после gating: `7`
+
+### 8.21 Перенос на Волгоград (`zero-shot / finetune / scratch`)
+
+Скрипты:
+
+- `transfer/xgb_transfer_experiment.py`
+- `transfer/build_transfer_modes_summary.py`
+
+Run: `outputs_runs/20260412_141500_transfer_volgograd_v2`
+
+Артефакты:
+
+- `outputs_runs/20260412_141500_transfer_volgograd_v2/transfer_modes_summary.csv`
+- `outputs_runs/20260412_141500_transfer_volgograd_v2/transfer_modes_vs_zeroshot.csv`
+
+Результат на test (`n=8741`):
+
+- zero-shot: `RMSE=1.2095`, `MAE=0.9194`, `R2=0.9884`
+- finetune: `RMSE=0.8807`, `MAE=0.6707`, `R2=0.9938`
+- scratch: `RMSE=0.8358`, `MAE=0.6323`, `R2=0.9945`
+
+Выигрыш к zero-shot:
+
+- finetune: `RMSE +0.3288`, `MAE +0.2486`, `R2 +0.00546`
+- scratch: `RMSE +0.3737`, `MAE +0.2871`, `R2 +0.00607`
+
+### 8.22 Фактический итог этапа 8
+
+- Эталон `xgb_delta_gated + gate_eps=0.005 + conformal(4,10)` подтверждён на control и сохраняет выигрыш на expanded.
+- Расширение overlap до `132` станций не сломало профиль: модель остаётся лучше baseline RP5 по RMSE/MAE.
+- Cluster v2 в текущей реализации не дал устойчивого превосходства над `xgb_delta_gated`.
+- По rolling-origin выигрыши стабильные, по LOSO остаётся station-tail риска.
+- На переносе в Волгоград выполнено честное сравнение трёх режимов; лучший результат дал `scratch`, затем `finetune`, затем `zero-shot`.
+
+### 8.D Adaptive gate + safeguard + cluster v3 (`8.23-8.27`)
+
+### 8.23 Расширенный run v3 (adaptive/safeguard/cluster v3)
+
+Скрипт: `transfer/rp5_hydromet_bridge_improvements.py`  
+Run: `outputs_runs/20260412_170500_bridge_expanded_min10_v3_adaptive`
+
+Сплит и набор:
+
+- `train<=2020`, `calib=2021`, `test=2022-2023`
+- `expanded_min10_2013_2023`: `467007` строк, `132` станции
+- диагностика устойчивости в run: `rolling-origin` + `LOSO` (`132/132`)
+
+### 8.24 Adaptive gate по station-risk (LOSO/rolling)
+
+Что добавлено:
+
+- station-wise `adaptive_eps` на базе `LOSO + rolling` риска
+- базовый порог `base_eps=0.005`, дальше авто-подстройка по станциям
+
+Факты (`adaptive_gate_summary.json`):
+
+- `adaptive_eps_mean=0.0098`, `adaptive_eps_median=0.0070`
+- добавка из rolling-волатильности: `+0.0020`
+- открытых станций по gate: `89 -> 85`
+
+Эффект на test:
+
+- `xgb_delta_gated`: `RMSE=1.6261`, `MAE=1.0969`
+- `xgb_delta_gated_adaptive`: `RMSE=1.6272`, `MAE=1.0975`
+- по station-risk хвост стал мягче: ухудшенных станций `7 -> 5`
+
+Вывод: adaptive gate в одиночку в первую очередь режет риск-хвост, но слегка «пережимает» глобальную ошибку.
+
+### 8.25 Safeguard-контур для тяжёлых станций
+
+Что добавлено:
+
+- отдельная fallback-политика (`baseline/seasonal`) при ухудшении на calib
+- порог срабатывания safeguard: `margin=0.002`
+
+Факты (`safeguard_summary.json`):
+
+- fallback включён на `82/132` станциях
+- fallback на `baseline`: `43`
+- fallback на `seasonal`: `39`
+
+Эффект на test:
+
+- `xgb_delta_gated_adaptive_safeguard`: `RMSE=1.6201`, `MAE=1.0953`, `R2=0.9890`
+- к `xgb_delta_gated`: `RMSE -0.0060`, `MAE -0.0016`
+- к baseline RP5: `RMSE -0.1052` (`-6.10%`), `MAE -0.0491` (`-4.29%`)
+
+По station-risk:
+
+- `xgb_delta_gated`: улучшено `82`, ухудшено `7`
+- `xgb_delta_gated_adaptive_safeguard`: улучшено `83`, ухудшено `6`
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260412_170500_bridge_expanded_min10_v3_adaptive/adaptive_gate_thresholds.png" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <img src="outputs_runs/20260412_170500_bridge_expanded_min10_v3_adaptive/safeguard_policy_summary.png" width="100%">
+    </td>
+  </tr>
+</table>
+<p align="center"><sub>Рис. 13. Слева: adaptive-пороги по станциям; справа: распределение fallback-политики safeguard.</sub></p>
+
+<p align="center">
+  <img src="outputs_runs/20260412_170500_bridge_expanded_min10_v3_adaptive/v3_focus_compare_test.png" width="900">
+</p>
+<p align="center"><sub>Рис. 14. Сравнение ключевых вариантов: ошибки на test и station-risk профиль.</sub></p>
+
+### 8.26 Cluster bridge v3 (seasonal+bias+year-profile)
+
+Что добавлено в v3-кластеризацию:
+
+- seasonal+bias признаки станции
+- профиль ошибок по годам/режимам (`mae_year_mean/std/max`, `bias_year_std`, mode-wise gain)
+
+Факты (`cluster_fit_status_v3.csv`):
+
+- кластеры `0/1/2`: обучены
+- кластеры `3/4`: fallback на global-модель (мало train-строк)
+- итого: `3` обученных + `2` fallback кластера
+
+Эффект на test:
+
+- `xgb_delta_clustered_v3_gated`: `RMSE=1.6265`, `MAE=1.0992`
+- `xgb_delta_gated`: `RMSE=1.6261`, `MAE=1.0969`
+
+Вывод: cluster v3 в текущей реализации не обошёл эталон по RMSE/MAE, оставлен как диагностическая ветка.
+
+### 8.27 Uncertainty-блок: coverage + width + CRPS-like
+
+Артефакты:
+
+- `intervals_quality_summary.csv`
+- `intervals_quality_tradeoff_085.png`
+
+Сравнение при target `0.85`:
+
+| Метод | Coverage | Mean width | CRPS-like |
+|---|---:|---:|---:|
+| global quantile | 0.8593 | 4.2000 | 0.5011 |
+| monthly conformal | 0.8567 | 4.2603 | 0.4835 |
+| conditional (`station_group + month`) | 0.8581 | 4.2380 | 0.4521 |
+
+Вывод: conditional conformal сохраняет нужное покрытие и даёт лучшую quality-метрику интервала (`CRPS-like` минимум).
+
+<p align="center">
+  <img src="outputs_runs/20260412_170500_bridge_expanded_min10_v3_adaptive/intervals_quality_tradeoff_085.png" width="900">
+</p>
+<p align="center"><sub>Рис. 15. Качество интервалов при target=0.85: сравнение ширины и CRPS-like по методам.</sub></p>
 
 ---

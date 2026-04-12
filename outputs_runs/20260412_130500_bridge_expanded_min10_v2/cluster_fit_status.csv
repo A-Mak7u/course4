@@ -1,0 +1,5 @@
+cluster_id,train_rows,calib_rows,test_rows,status
+0,136752,17807,35593,trained
+1,90,179,91,fallback_global
+2,188267,28654,55557,trained
+3,2922,365,730,trained
