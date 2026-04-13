@@ -31,7 +31,8 @@
 
 Метрики test (`2022-2023`):
 
-| Этап | Скрипт / Run | R2 | RMSE | MAE |
+| Этап | Скрипт / Run | R2 | RMSE | MAE |8.32 Дополнительные сводные графики для диплома
+
 |---|---|---:|---:|---:|
 | Без лагов (clean) | `xgb/xgb_optuna_with_extra_features.py` / `20260413_135902_extra` | 0.9868 | 1.3312 | 0.8486 |
 | Extra-features v2 (clean) | `xgb/xgb_optuna_with_extra_features_v2.py` / `20260413_132936_extra_v2` | 0.9868 | 1.3305 | 0.8492 |
@@ -1208,7 +1209,6 @@ Run: `outputs_runs/20260413_122000_bridge_expanded_min10_v4_selector`
 ### 8.30 Факт по потолку улучшений на текущем наборе
 
 - Meta-selector дал дополнительный, но уже небольшой прирост к лучшему v3-профилю.
-- По величине улучшения это этап «тонкой доводки», а не смены класса качества.
 - Текущий практический baseline для следующих сравнений: `xgb_delta_selector_station`.
 
 ### 8.31 Sensitivity-check selector-порогов (последний цикл)
@@ -1228,12 +1228,5 @@ Runs:
 | v4 default | `xgb_delta_selector_station` | 1.6165 | 1.0932 |
 | v4 gain0 | `xgb_delta_selector_station` | 1.6164 | 1.0933 |
 | v4 strict | `xgb_delta_selector_station_month` | 1.6174 | 1.0930 |
-
-Вывод:
-
-- после v4 приросты стали суб-десятыми (`~0.001` по RMSE/MAE между конфигурациями) — это практический plateau.
-- выбор профиля теперь по приоритету метрики:
-- если приоритет RMSE: `v4_gain0`;
-- если приоритет MAE и более консервативные переключения selector: `v4_strict`.
 
 ---
