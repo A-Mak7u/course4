@@ -766,10 +766,10 @@ Run: `outputs_runs/20260411_214201_rp5_hydromet_bridge_improvements_selected125`
 <table align="center">
   <tr>
     <td align="center" width="50%">
-      <img src="outputs_runs/20260411_214201_rp5_hydromet_bridge_improvements_selected125/variant_rmse_test.png" width="100%">
+      <img src="reports/figures/fig9_variant_rmse_test.png" width="100%">
     </td>
     <td align="center" width="50%">
-      <img src="outputs_runs/20260411_214201_rp5_hydromet_bridge_improvements_selected125/variant_mae_test.png" width="100%">
+      <img src="reports/figures/fig9_variant_mae_test.png" width="100%">
     </td>
   </tr>
 </table>
@@ -826,7 +826,7 @@ Run: `outputs_runs/20260411_214201_rp5_hydromet_bridge_improvements_selected125`
 - conditional-вариант даёт более узкие интервалы при практически том же уровне калибровки
 
 <p align="center">
-  <img src="outputs_runs/20260412_conformal_grid/g4_m10/intervals_target_vs_achieved.png" width="70%">
+  <img src="reports/figures/fig10_intervals_target_vs_achieved.png" width="70%">
 </p>
 <p align="center"><sub>Рис. 10. Сравнение global/monthly/conditional conformal: целевое и фактическое покрытие.</sub></p>
 
@@ -1201,7 +1201,7 @@ Run: `outputs_runs/20260413_122000_bridge_expanded_min10_v4_selector`
 - `MAE -0.0512`
 
 <p align="center">
-  <img src="outputs_runs/20260413_122000_bridge_expanded_min10_v4_selector/v3_focus_compare_test.png" width="950">
+  <img src="reports/figures/fig16_v4_focus_compare_test.png" width="950">
 </p>
 <p align="center"><sub>Рис. 16. Варианты v4: ошибки на test и station-risk профиль (включая meta-selector).</sub></p>
 
