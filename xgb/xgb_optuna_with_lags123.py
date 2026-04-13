@@ -69,6 +69,7 @@ def objective(trial):
                   evals=[(D(inner_val, inner_val[target]),"val")],
                   early_stopping_rounds=100, verbose_eval=False)
     pred = m.predict(D(inner_val, inner_val[target]))
+    trial.set_user_attr("best_iteration", int(getattr(m, "best_iteration", 3999)) + 1)
     return -r2_score(inner_val[target], pred)
 study.optimize(objective, n_trials=60)
 
@@ -76,10 +77,8 @@ bp = study.best_params
 if "lambda_" in bp:
     bp["reg_lambda"] = bp.pop("lambda_")
 bp.update(dict(objective="reg:squarederror", tree_method="hist", device="cuda", seed=42))
-
-model = xgb.train(bp, D(train, train[target]), num_boost_round=4000,
-                  evals=[(D(inner_val, inner_val[target]),"val")],
-                  early_stopping_rounds=100, verbose_eval=False)
+best_rounds = int(study.best_trial.user_attrs.get("best_iteration", 4000))
+model = xgb.train(bp, D(train, train[target]), num_boost_round=best_rounds, verbose_eval=False)
 
 pred_train = model.predict(D(train, train[target]))
 pred_test  = model.predict(D(test,  test[target]))

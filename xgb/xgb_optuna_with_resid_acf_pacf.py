@@ -108,14 +108,14 @@ def objective(trial):
                   evals=[(D(inner_val, inner_val[target]),"val")],
                   early_stopping_rounds=300, verbose_eval=200)
     pred = m.predict(D(inner_val, inner_val[target]))
+    trial.set_user_attr("best_iteration", int(getattr(m, "best_iteration", 19999)) + 1)
     return r2_score(inner_val[target], pred)
 study.optimize(objective, n_trials=40)
 
 bp = study.best_params
 bp.update(dict(objective="reg:squarederror", tree_method="hist", device="cuda", seed=42))
-model = xgb.train(bp, D(train, train[target]), num_boost_round=20000,
-                  evals=[(D(inner_val, inner_val[target]),"val")],
-                  early_stopping_rounds=300, verbose_eval=200)
+best_rounds = int(study.best_trial.user_attrs.get("best_iteration", 20000))
+model = xgb.train(bp, D(train, train[target]), num_boost_round=best_rounds, verbose_eval=False)
 
 def pack(y, p):
     return dict(R2=float(r2_score(y,p)),

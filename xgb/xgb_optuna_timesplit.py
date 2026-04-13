@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import optuna
 import xgboost as xgb
-from sklearn.model_selection import KFold
+from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
 from tqdm import tqdm
 import joblib
@@ -22,6 +22,8 @@ for col in ["Temperature_2m", "Dewpoint_2m"]:
 
 df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
 df["year"] = df["Date"].dt.year
+sort_cols = ["Date"] + (["Cod"] if "Cod" in df.columns else [])
+df = df.sort_values(sort_cols).reset_index(drop=True)
 
 target = "T"
 features = [c for c in df.columns if c not in ["Cod", "Date", "year", "T"]]
@@ -68,10 +70,11 @@ def objective(trial):
         "alpha": trial.suggest_float("alpha", 1e-3, 100.0, log=True),
     }
 
-    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    tscv = TimeSeriesSplit(n_splits=5)
     scores = []
+    best_iters = []
 
-    for train_idx, val_idx in kf.split(X_train):
+    for train_idx, val_idx in tscv.split(X_train):
         dtrain = xgb.DMatrix(X_train.iloc[train_idx], label=y_train.iloc[train_idx])
         dval = xgb.DMatrix(X_train.iloc[val_idx], label=y_train.iloc[val_idx])
 
@@ -86,7 +89,10 @@ def objective(trial):
 
         preds = model.predict(dval)
         scores.append(r2_score(y_train.iloc[val_idx], preds))
+        best_iters.append(int(getattr(model, "best_iteration", 9999)) + 1)
 
+    if best_iters:
+        trial.set_user_attr("best_iteration", int(np.median(best_iters)))
     return np.mean(scores)
 
 n_trials = 500  # на ночь
@@ -106,10 +112,11 @@ with open(f"outputs_runs/{RUN}/best_params.txt", "w") as f:
     f.write(str(best_params) + "\n")
 
 dtrain_full = xgb.DMatrix(X_train, label=y_train)
+best_rounds = int(study.best_trial.user_attrs.get("best_iteration", 1000))
 final_model = xgb.train(
     {**best_params, "tree_method": "hist", "device": "cuda", "eval_metric": "rmse"},
     dtrain_full,
-    num_boost_round=study.best_trial.number * 50
+    num_boost_round=best_rounds
 )
 
 joblib.dump(final_model, f"outputs_runs/{RUN}/xgb_model.pkl")

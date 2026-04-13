@@ -38,12 +38,21 @@ df["diurnal_range"] = df["LST_Day"] - df["LST_Night"]
 
 train = df[df["year"] <= 2021]
 test  = df[df["year"] >= 2022]
+val_year = int(train["year"].max())
+opt_train = train[train["year"] < val_year].copy()
+opt_val = train[train["year"] == val_year].copy()
+if opt_train.empty or opt_val.empty:
+    raise RuntimeError("Не удалось собрать внутренний split train/val из train-периода.")
 
 features = [c for c in df.columns if c not in [TARGET, "Cod", "Date", "year"]]
 X_train, y_train = train[features], train[TARGET]
 X_test,  y_test  = test[features],  test[TARGET]
+X_opt_train, y_opt_train = opt_train[features], opt_train[TARGET]
+X_opt_val, y_opt_val = opt_val[features], opt_val[TARGET]
 dtrain = xgb.DMatrix(X_train, label=y_train)
 dtest  = xgb.DMatrix(X_test, label=y_test)
+dtrain_opt = xgb.DMatrix(X_opt_train, label=y_opt_train)
+dval_opt = xgb.DMatrix(X_opt_val, label=y_opt_val)
 
 def objective(trial):
     params = {
@@ -61,25 +70,26 @@ def objective(trial):
     }
     booster = xgb.train(
         params,
-        dtrain,
+        dtrain_opt,
         num_boost_round=500,
-        evals=[(dtest, "test")],
+        evals=[(dval_opt, "val")],
         early_stopping_rounds=50,
         verbose_eval=False,
     )
-    preds = booster.predict(dtest)
-    return r2_score(y_test, preds)
+    preds = booster.predict(dval_opt)
+    trial.set_user_attr("best_iteration", int(getattr(booster, "best_iteration", 499)) + 1)
+    return r2_score(y_opt_val, preds)
 
 study = optuna.create_study(direction="maximize")
 study.optimize(objective, n_trials=50)
 
 best_params = study.best_params
+best_rounds = int(study.best_trial.user_attrs.get("best_iteration", 500))
 booster = xgb.train(
     {**best_params, "objective": "reg:squarederror", "tree_method": "hist", "device": "cuda"},
     dtrain,
-    num_boost_round=1000,
-    evals=[(dtest, "test")],
-    early_stopping_rounds=50,
+    num_boost_round=best_rounds,
+    verbose_eval=False,
 )
 
 preds = booster.predict(dtest)

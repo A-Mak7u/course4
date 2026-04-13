@@ -93,9 +93,17 @@ def objective(trial):
         "min_child_weight": trial.suggest_int("min_child_weight", 1, 20),
         "seed": 42,
     }
-    model = xgb.train(params, d_inner_train, num_boost_round=4000, evals=[(d_inner_val,"val")], early_stopping_rounds=100, verbose_eval=False)
+    model = xgb.train(
+        params,
+        d_inner_train,
+        num_boost_round=4000,
+        evals=[(d_inner_val, "val")],
+        early_stopping_rounds=100,
+        verbose_eval=False,
+    )
     pred = model.predict(d_inner_val)
     r2 = r2_score(y_inner_val, pred)
+    trial.set_user_attr("best_iteration", int(getattr(model, "best_iteration", 3999)) + 1)
     return -r2
 
 study = optuna.create_study(direction="minimize")
@@ -109,7 +117,8 @@ best_params.update({
     "seed": 42,
 })
 
-model = xgb.train(best_params, d_train, num_boost_round=4000, evals=[(d_inner_val,"val")], early_stopping_rounds=100, verbose_eval=False)
+best_rounds = int(study.best_trial.user_attrs.get("best_iteration", 4000))
+model = xgb.train(best_params, d_train, num_boost_round=best_rounds, verbose_eval=False)
 
 pred_test = model.predict(d_test)
 metrics_test = {

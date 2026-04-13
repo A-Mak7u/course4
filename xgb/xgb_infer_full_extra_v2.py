@@ -1,5 +1,6 @@
 
 import os, datetime, json
+import argparse
 import pandas as pd, numpy as np
 import xgboost as xgb
 import matplotlib.pyplot as plt
@@ -10,10 +11,41 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 os.chdir(PROJECT_ROOT)
 
 DATA_PATH = "final_2013_2023_T_ERA5_LST_daynight.csv"
-MODEL_PATH = "outputs_runs/20250915_165542_extra_v2/xgb_model.json"
 RUN = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_infer_extra_v2")
 OUT = f"outputs_runs/{RUN}"
 os.makedirs(OUT, exist_ok=True)
+
+
+def parse_args():
+    p = argparse.ArgumentParser(
+        description="Inference extra_v2 на полном датасете без переобучения."
+    )
+    p.add_argument(
+        "--model-path",
+        type=str,
+        default="",
+        help="Путь к xgb_model.json. Если не задан, берётся последний outputs_runs/*_extra_v2/xgb_model.json",
+    )
+    p.add_argument(
+        "--data-path",
+        type=str,
+        default=DATA_PATH,
+        help="CSV с входными данными.",
+    )
+    return p.parse_args()
+
+
+def resolve_model_path(model_path_arg: str) -> Path:
+    if model_path_arg:
+        p = Path(model_path_arg)
+        if not p.exists():
+            raise FileNotFoundError(f"Модель не найдена: {p}")
+        return p
+
+    candidates = sorted(Path("outputs_runs").glob("*_extra_v2/xgb_model.json"))
+    if not candidates:
+        raise FileNotFoundError("Не найдено ни одной модели outputs_runs/*_extra_v2/xgb_model.json")
+    return candidates[-1]
 
 def add_features(df):
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
@@ -38,14 +70,16 @@ def compute_metrics(y_true, y_pred):
         "MedAE": float(np.median(np.abs(yt - yp))),
     }
 
-df = pd.read_csv(DATA_PATH)
+args = parse_args()
+model_path = resolve_model_path(args.model_path)
+df = pd.read_csv(args.data_path)
 df = add_features(df)
 
 target = "T"
 features = [c for c in df.columns if c not in ["Cod","Date","year",target]]
 
 booster = xgb.Booster()
-booster.load_model(MODEL_PATH)
+booster.load_model(str(model_path))
 booster.set_param({"device":"cuda"})
 
 dmat = xgb.DMatrix(df[features], missing=np.nan)
@@ -109,4 +143,5 @@ plt.title("Ошибки по месяцам"); plt.suptitle("")
 plt.xlabel("Месяц"); plt.ylabel("Ошибка (°C)")
 plt.savefig(f"{OUT}/boxplot_error_by_month.png", dpi=150); plt.close()
 
+print("MODEL_PATH", str(model_path))
 print("DONE", OUT, metrics)

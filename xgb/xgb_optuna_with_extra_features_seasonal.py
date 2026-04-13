@@ -37,10 +37,17 @@ def train_season(df, season_name, months):
     df_season = df_season[~df_season["T"].isna()]  # <=== добавил фильтр
     train = df_season[(df_season["Date"].dt.year <= 2021)]
     test  = df_season[(df_season["Date"].dt.year >= 2022)]
+    val_year = int(train["Date"].dt.year.max())
+    opt_train = train[train["Date"].dt.year < val_year].copy()
+    opt_val = train[train["Date"].dt.year == val_year].copy()
+    if train.empty or test.empty or opt_train.empty or opt_val.empty:
+        raise RuntimeError(f"Пустая выборка для сезона {season_name}: train/test/opt_train/opt_val.")
     target = "T"
     features = [c for c in df_season.columns if c not in ["Cod","Date",target]]
     dtrain = xgb.DMatrix(train[features], label=train[target], missing=np.nan)
     dtest  = xgb.DMatrix(test[features],  label=test[target],  missing=np.nan)
+    dtrain_opt = xgb.DMatrix(opt_train[features], label=opt_train[target], missing=np.nan)
+    dval_opt = xgb.DMatrix(opt_val[features], label=opt_val[target], missing=np.nan)
 
 
     def objective(trial):
@@ -57,12 +64,13 @@ def train_season(df, season_name, months):
             "objective": "reg:squarederror",
             "eval_metric": "rmse",
         }
-        model = xgb.train(params, dtrain, num_boost_round=2000,
-                          evals=[(dtest,"test")],
+        model = xgb.train(params, dtrain_opt, num_boost_round=2000,
+                          evals=[(dval_opt,"val")],
                           early_stopping_rounds=100,
                           verbose_eval=False)
-        preds = model.predict(dtest)
-        return r2_score(test[target], preds)
+        preds = model.predict(dval_opt)
+        trial.set_user_attr("best_iteration", int(getattr(model, "best_iteration", 1999)) + 1)
+        return r2_score(opt_val[target], preds)
 
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=100, show_progress_bar=True)
@@ -73,11 +81,9 @@ def train_season(df, season_name, months):
         "objective": "reg:squarederror",
         "eval_metric": "rmse",
     })
+    best_rounds = int(study.best_trial.user_attrs.get("best_iteration", 2000))
 
-    model = xgb.train(best_params, dtrain, num_boost_round=2000,
-                      evals=[(dtest,"test")],
-                      early_stopping_rounds=100,
-                      verbose_eval=100)
+    model = xgb.train(best_params, dtrain, num_boost_round=best_rounds, verbose_eval=False)
     model.save_model(f"{OUT}/xgb_model_{season_name}.json")
 
     preds = model.predict(dtest)
