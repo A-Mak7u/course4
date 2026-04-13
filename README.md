@@ -33,13 +33,13 @@
 
 | Этап | Скрипт / Run | R2 | RMSE | MAE |
 |---|---|---:|---:|---:|
-| Базовый timesplit | `xgb/xgb_optuna_timesplit.py` / `20250905_142927` | 0.9684 | 2.0564 | 0.9750 |
-| Extra-features v2 | `xgb/xgb_optuna_with_extra_features_v2.py` / `20250915_165542_extra_v2` | 0.9868 | 1.3300 | 0.8482 |
+| Без лагов (clean) | `xgb/xgb_optuna_with_extra_features.py` / `20260413_135902_extra` | 0.9868 | 1.3312 | 0.8486 |
+| Extra-features v2 (clean) | `xgb/xgb_optuna_with_extra_features_v2.py` / `20260413_132936_extra_v2` | 0.9868 | 1.3305 | 0.8492 |
 | Лаги `t-1` | `xgb/xgb_optuna_with_lags.py` / `20250916_154740_lags` | 0.9875 | 1.2945 | 0.7963 |
 | Лаги `t-1..t-3` | `xgb/xgb_optuna_with_lags123.py` / `20250916_163343_lags123_fix` | 0.9896 | 1.1816 | 0.7452 |
 | Лаги `t-1..t-3` + spatial | `xgb/xgb_optuna_with_lags123_spatial.py` / `20250916_171729_lags123_spatial` | 0.9898 | 1.1675 | 0.7189 |
 
-Итог этапа: подтверждённый путь улучшения был линейным и понятным: сезонные/производные признаки дали основной скачок от базового timesplit, лаговый блок ещё снизил ошибку, spatial-блок и `station_train_mean_T` довели ветку до лучшего результата на полном датасете.
+Итог этапа: подтверждённый путь улучшения был линейным и понятным: безлаговая ветка с производными признаками дала стартовую точку, лаговый блок ещё снизил ошибку, spatial-блок и `station_train_mean_T` довели ветку до лучшего результата на полном датасете.
 
 ---
 
@@ -77,11 +77,6 @@ Run: `outputs_runs/20250916_171729_lags123_spatial`
 ---
 
 ## 4. Что не стало основной веткой
-
-Сезонное разбиение (`xgb/xgb_optuna_with_extra_features_seasonal.py`, `20250915_094512_seasonal`):
-
-- Cold: `R2 = 0.9450`, `RMSE = 1.5472`, `MAE = 0.9546`
-- Warm: `R2 = 0.9708`, `RMSE = 1.1383`, `MAE = 0.7684`
 
 Post-bias по станциям (`xgb/xgb_optuna_with_lags123_spatial_bias.py`, `20250916_173641_lags123_spatial_bias`):
 
@@ -1166,5 +1161,79 @@ Run: `outputs_runs/20260412_170500_bridge_expanded_min10_v3_adaptive`
   <img src="outputs_runs/20260412_170500_bridge_expanded_min10_v3_adaptive/intervals_quality_tradeoff_085.png" width="900">
 </p>
 <p align="center"><sub>Рис. 15. Качество интервалов при target=0.85: сравнение ширины и CRPS-like по методам.</sub></p>
+
+### 8.E Meta-selector поверх v3 (`8.28-8.30`)
+
+### 8.28 Station / station-month selector (expanded)
+
+Скрипт: `transfer/rp5_hydromet_bridge_improvements.py`  
+Run: `outputs_runs/20260413_122000_bridge_expanded_min10_v4_selector`
+
+Что добавлено:
+
+- meta-selector по станциям: выбор лучшего варианта на `calib` среди
+  `xgb_delta_gated`, `xgb_delta_gated_adaptive`, `xgb_delta_gated_adaptive_safeguard`, `xgb_delta_clustered_v3_gated`
+- meta-selector по `(station,month)` с fallback на station-selector
+- anti-overfit порог переключения: `selector_min_gain=0.003`
+- минимум для month-selector: `20` наблюдений на `(station,month)` в `calib`
+
+Политики:
+
+- station switches: `28`
+- station-month switches: `552`
+
+### 8.29 Сравнение с прошлым лидером
+
+На test (`2022-2023`, `n=91971`, `132` станции):
+
+- `xgb_delta_gated_adaptive_safeguard` (прошлый лидер): `RMSE=1.6201`, `MAE=1.0953`
+- `xgb_delta_selector_station`: `RMSE=1.6165`, `MAE=1.0932`, `R2=0.98908`
+- `xgb_delta_selector_station_month`: `RMSE=1.6176`, `MAE=1.0933`, `R2=0.98907`
+
+Прирост лучшего selector-варианта к прошлому лидеру:
+
+- `RMSE -0.0036`
+- `MAE -0.0021`
+
+Прирост к baseline RP5:
+
+- `RMSE -0.1076`
+- `MAE -0.0512`
+
+<p align="center">
+  <img src="outputs_runs/20260413_122000_bridge_expanded_min10_v4_selector/v3_focus_compare_test.png" width="950">
+</p>
+<p align="center"><sub>Рис. 16. Варианты v4: ошибки на test и station-risk профиль (включая meta-selector).</sub></p>
+
+### 8.30 Факт по потолку улучшений на текущем наборе
+
+- Meta-selector дал дополнительный, но уже небольшой прирост к лучшему v3-профилю.
+- По величине улучшения это этап «тонкой доводки», а не смены класса качества.
+- Текущий практический baseline для следующих сравнений: `xgb_delta_selector_station`.
+
+### 8.31 Sensitivity-check selector-порогов (последний цикл)
+
+Скрипт: `transfer/rp5_hydromet_bridge_improvements.py`
+
+Runs:
+
+- `outputs_runs/20260413_122000_bridge_expanded_min10_v4_selector` (`min_gain=0.003`, `month_min=20`)
+- `outputs_runs/20260413_124500_bridge_expanded_min10_v4_selector_gain0` (`min_gain=0.000`, `month_min=15`)
+- `outputs_runs/20260413_125000_bridge_expanded_min10_v4_selector_strict` (`min_gain=0.010`, `month_min=25`)
+
+Сравнение лучших test-вариантов:
+
+| Run | Лучший вариант | RMSE | MAE |
+|---|---|---:|---:|
+| v4 default | `xgb_delta_selector_station` | 1.6165 | 1.0932 |
+| v4 gain0 | `xgb_delta_selector_station` | 1.6164 | 1.0933 |
+| v4 strict | `xgb_delta_selector_station_month` | 1.6174 | 1.0930 |
+
+Вывод:
+
+- после v4 приросты стали суб-десятыми (`~0.001` по RMSE/MAE между конфигурациями) — это практический plateau.
+- выбор профиля теперь по приоритету метрики:
+- если приоритет RMSE: `v4_gain0`;
+- если приоритет MAE и более консервативные переключения selector: `v4_strict`.
 
 ---
