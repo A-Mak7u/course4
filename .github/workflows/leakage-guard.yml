@@ -1,0 +1,30 @@
+name: leakage-guard
+
+on:
+  push:
+    paths:
+      - "xgb/**"
+      - "transfer/**"
+      - "scripts/check_leakage_guard.py"
+      - ".github/workflows/leakage-guard.yml"
+  pull_request:
+    paths:
+      - "xgb/**"
+      - "transfer/**"
+      - "scripts/check_leakage_guard.py"
+      - ".github/workflows/leakage-guard.yml"
+
+jobs:
+  run-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run leakage guard
+        run: python scripts/check_leakage_guard.py --root .
