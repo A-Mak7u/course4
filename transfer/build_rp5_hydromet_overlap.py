@@ -126,8 +126,8 @@ def main() -> None:
     abs_delta = overlap["delta_rp5_minus_hydromet"].abs()
     per_station_counts = overlap.groupby("station").size().sort_values(ascending=False)
     reference_report: dict[str, object] | None = None
-    ref_path = Path(args.reference_stations_csv)
-    if args.reference_stations_csv and ref_path.exists():
+    ref_path = Path(args.reference_stations_csv) if args.reference_stations_csv else None
+    if ref_path is not None and ref_path.exists():
         ref = pd.read_csv(ref_path)
         if args.reference_station_col not in ref.columns:
             raise RuntimeError(

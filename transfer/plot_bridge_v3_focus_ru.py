@@ -15,6 +15,8 @@ LABELS = {
     "xgb_delta_gated_adaptive": "XGB delta + адаптивный gate",
     "xgb_delta_gated_adaptive_safeguard": "XGB delta + адаптивный gate + safeguard",
     "xgb_delta_clustered_v3_gated": "Кластерный v3 + gate",
+    "xgb_delta_selector_station": "Meta-selector по станциям",
+    "xgb_delta_selector_station_month": "Meta-selector station+month",
 }
 
 
@@ -30,13 +32,16 @@ def main() -> None:
     vm = pd.read_csv(run_dir / "variant_metrics.csv")
     risk = pd.read_csv(run_dir / "station_risk_summary_test.csv")
 
-    ordered_variants = [
+    base_order = [
         "baseline",
         "xgb_delta_gated",
         "xgb_delta_gated_adaptive",
         "xgb_delta_gated_adaptive_safeguard",
         "xgb_delta_clustered_v3_gated",
+        "xgb_delta_selector_station",
+        "xgb_delta_selector_station_month",
     ]
+    ordered_variants = [v for v in base_order if v in vm["variant"].unique().tolist()]
     test = vm[(vm["split"] == "test") & (vm["variant"].isin(ordered_variants))].copy()
     test["variant"] = pd.Categorical(test["variant"], categories=ordered_variants, ordered=True)
     test = test.sort_values("variant")

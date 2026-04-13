@@ -55,3 +55,21 @@ data/volgograd/processed/
 *.out
 *.toc
 ~$*.docx
+
+# Local research notes (do not publish)
+codex.md
+
+# Timestamped run artifacts (keep local by default)
+outputs_runs/20*
+
+# Rosgidromet raw/intermediate dumps (keep local)
+data/rosgidromet/aisori/
+data/rosgidromet/bridge_inputs/meteostat_bulk_2013_2023/per_station/
+data/rosgidromet/bridge_inputs/rp5_vs_hydromet_overlap_*.csv
+data/rosgidromet/bridge_inputs/rp5_vs_hydromet_overlap_*.csv.summary.json
+data/rosgidromet/bridge_inputs/rp5_meteostat_overlap_policy_sets_2013_2023_min10.summary.json
+data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_2013_2023_rebuilt_by_builder.csv
+data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_2013_2023_rebuilt_by_builder.csv.summary.json
+data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_2013_2023_selected125.csv
+data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_control_selected125_2013_2023.csv
+data/rosgidromet/bridge_inputs/rp5_meteostat_vs_hydromet_overlap_expanded_min10_2013_2023.csv

@@ -40,6 +40,8 @@ VARIANT_LABELS_RU = {
     "xgb_delta_clustered_v3": "XGB delta clustered v3",
     "xgb_delta_clustered_v3_gated": "XGB delta clustered v3 + gate",
     "xgb_delta_clustered_v3_gated_adaptive": "XGB delta clustered v3 + adaptive gate",
+    "xgb_delta_selector_station": "XGB delta meta-selector (station)",
+    "xgb_delta_selector_station_month": "XGB delta meta-selector (station+month)",
 }
 
 
@@ -188,6 +190,28 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=220,
         help="Число деревьев XGB для rolling/LOSO-диагностики (ускоренный режим).",
+    )
+    parser.add_argument(
+        "--selector-anchor",
+        default="xgb_delta_gated_adaptive_safeguard",
+        help="Базовый (anchor) вариант для meta-selector.",
+    )
+    parser.add_argument(
+        "--selector-candidates",
+        default="xgb_delta_gated,xgb_delta_gated_adaptive,xgb_delta_gated_adaptive_safeguard,xgb_delta_clustered_v3_gated",
+        help="Кандидаты для meta-selector через запятую.",
+    )
+    parser.add_argument(
+        "--selector-min-gain",
+        type=float,
+        default=0.003,
+        help="Минимальный выигрыш MAE на calib к anchor для переключения selector.",
+    )
+    parser.add_argument(
+        "--selector-month-min-samples",
+        type=int,
+        default=20,
+        help="Минимум наблюдений (station,month) на calib для station-month selector.",
     )
     return parser.parse_args()
 
@@ -611,6 +635,177 @@ def apply_safeguard_policy(
             out[i] = seasonal_pred[i]
         else:
             out[i] = baseline_pred[i]
+    return out
+
+
+def parse_selector_candidates(raw: str) -> list[str]:
+    out: list[str] = []
+    for token in str(raw).split(","):
+        name = token.strip()
+        if not name:
+            continue
+        out.append(name)
+    if not out:
+        return []
+    # keep order + unique
+    return list(dict.fromkeys(out))
+
+
+def build_station_variant_policy(
+    calib_df: pd.DataFrame,
+    station_col: str,
+    target_col: str,
+    anchor_variant: str,
+    candidate_variants: list[str],
+    min_gain: float,
+) -> pd.DataFrame:
+    pred_variants = list(dict.fromkeys([anchor_variant] + [v for v in candidate_variants if v != anchor_variant]))
+    cols_required = [station_col, target_col] + pred_variants
+    work = calib_df[cols_required].copy()
+    rows: list[dict[str, float | int | str]] = []
+    variants = pred_variants
+
+    for station, g in work.groupby(station_col):
+        y = g[target_col]
+        anchor_mae = float(mean_absolute_error(y, g[anchor_variant]))
+        best_variant = anchor_variant
+        best_mae = anchor_mae
+        for v in variants:
+            mae_v = float(mean_absolute_error(y, g[v]))
+            if mae_v < best_mae:
+                best_mae = mae_v
+                best_variant = v
+        gain_vs_anchor = anchor_mae - best_mae
+        selected_variant = best_variant if gain_vs_anchor > float(min_gain) else anchor_variant
+        rows.append(
+            {
+                "station": str(station),
+                "n_calib": int(len(g)),
+                "anchor_variant": str(anchor_variant),
+                "anchor_mae": anchor_mae,
+                "best_variant": str(best_variant),
+                "best_mae": best_mae,
+                "gain_vs_anchor": gain_vs_anchor,
+                "selected_variant": str(selected_variant),
+                "switched": int(str(selected_variant) != str(anchor_variant)),
+            }
+        )
+    return pd.DataFrame(rows).sort_values("gain_vs_anchor", ascending=False).reset_index(drop=True)
+
+
+def apply_station_variant_policy(
+    station_series: pd.Series,
+    pred_map: dict[str, np.ndarray],
+    policy_df: pd.DataFrame,
+    default_variant: str,
+) -> np.ndarray:
+    station_to_variant = {
+        str(r["station"]): str(r["selected_variant"])
+        for _, r in policy_df.iterrows()
+    }
+    out = np.empty(len(station_series), dtype=float)
+    station_vals = station_series.astype(str).tolist()
+    for i, st in enumerate(station_vals):
+        variant = station_to_variant.get(st, default_variant)
+        if variant not in pred_map:
+            variant = default_variant
+        out[i] = float(pred_map[variant][i])
+    return out
+
+
+def build_station_month_variant_policy(
+    calib_df: pd.DataFrame,
+    station_col: str,
+    month_col: str,
+    target_col: str,
+    anchor_variant: str,
+    candidate_variants: list[str],
+    min_gain: float,
+    min_samples: int,
+) -> pd.DataFrame:
+    pred_variants = list(dict.fromkeys([anchor_variant] + [v for v in candidate_variants if v != anchor_variant]))
+    cols_required = [station_col, month_col, target_col] + pred_variants
+    work = calib_df[cols_required].copy()
+    rows: list[dict[str, float | int | str]] = []
+    variants = pred_variants
+
+    for (station, month), g in work.groupby([station_col, month_col]):
+        n = int(len(g))
+        if n < int(min_samples):
+            rows.append(
+                {
+                    "station": str(station),
+                    "month": int(month),
+                    "n_calib": n,
+                    "anchor_variant": str(anchor_variant),
+                    "anchor_mae": np.nan,
+                    "best_variant": "station_fallback",
+                    "best_mae": np.nan,
+                    "gain_vs_anchor": np.nan,
+                    "selected_variant": "station_fallback",
+                    "switched": 0,
+                    "eligible": 0,
+                }
+            )
+            continue
+
+        y = g[target_col]
+        anchor_mae = float(mean_absolute_error(y, g[anchor_variant]))
+        best_variant = anchor_variant
+        best_mae = anchor_mae
+        for v in variants:
+            mae_v = float(mean_absolute_error(y, g[v]))
+            if mae_v < best_mae:
+                best_mae = mae_v
+                best_variant = v
+        gain_vs_anchor = anchor_mae - best_mae
+        selected_variant = best_variant if gain_vs_anchor > float(min_gain) else anchor_variant
+        rows.append(
+            {
+                "station": str(station),
+                "month": int(month),
+                "n_calib": n,
+                "anchor_variant": str(anchor_variant),
+                "anchor_mae": anchor_mae,
+                "best_variant": str(best_variant),
+                "best_mae": best_mae,
+                "gain_vs_anchor": gain_vs_anchor,
+                "selected_variant": str(selected_variant),
+                "switched": int(str(selected_variant) != str(anchor_variant)),
+                "eligible": 1,
+            }
+        )
+
+    return pd.DataFrame(rows).sort_values(["station", "month"]).reset_index(drop=True)
+
+
+def apply_station_month_variant_policy(
+    station_series: pd.Series,
+    month_series: pd.Series,
+    pred_map: dict[str, np.ndarray],
+    station_policy_df: pd.DataFrame,
+    station_month_policy_df: pd.DataFrame,
+    default_variant: str,
+) -> np.ndarray:
+    st_to_variant = {
+        str(r["station"]): str(r["selected_variant"])
+        for _, r in station_policy_df.iterrows()
+    }
+    st_month_to_variant = {
+        (str(r["station"]), int(r["month"])): str(r["selected_variant"])
+        for _, r in station_month_policy_df.iterrows()
+        if str(r.get("selected_variant", "")) != "station_fallback"
+    }
+    out = np.empty(len(station_series), dtype=float)
+    st_vals = station_series.astype(str).tolist()
+    m_vals = month_series.astype(int).tolist()
+    for i, (st, m) in enumerate(zip(st_vals, m_vals)):
+        variant = st_month_to_variant.get((st, int(m)))
+        if variant is None:
+            variant = st_to_variant.get(st, default_variant)
+        if variant not in pred_map:
+            variant = default_variant
+        out[i] = float(pred_map[variant][i])
     return out
 
 
@@ -2031,6 +2226,69 @@ def main() -> None:
         sample_weight=train_w,
     )
 
+    # 7) meta-selector over advanced delta variants (station and station-month policies)
+    selector_station_policy_df = pd.DataFrame()
+    selector_station_month_policy_df = pd.DataFrame()
+    selector_candidates = parse_selector_candidates(args.selector_candidates)
+    selector_candidates = [v for v in selector_candidates if v in pred_calib and v in pred_test]
+    selector_anchor = str(args.selector_anchor)
+    if selector_anchor in pred_calib and selector_anchor in pred_test:
+        if selector_anchor not in selector_candidates:
+            selector_candidates = [selector_anchor] + selector_candidates
+        selector_candidates = list(dict.fromkeys(selector_candidates))
+        if len(selector_candidates) > 1:
+            calib_selector_df = calib[["station", "month", "T_hydromet"]].copy()
+            for variant in selector_candidates:
+                calib_selector_df[variant] = pred_calib[variant]
+
+            selector_station_policy_df = build_station_variant_policy(
+                calib_df=calib_selector_df,
+                station_col="station",
+                target_col="T_hydromet",
+                anchor_variant=selector_anchor,
+                candidate_variants=selector_candidates,
+                min_gain=args.selector_min_gain,
+            )
+            pred_calib["xgb_delta_selector_station"] = apply_station_variant_policy(
+                station_series=calib["station"],
+                pred_map=pred_calib,
+                policy_df=selector_station_policy_df,
+                default_variant=selector_anchor,
+            )
+            pred_test["xgb_delta_selector_station"] = apply_station_variant_policy(
+                station_series=test["station"],
+                pred_map=pred_test,
+                policy_df=selector_station_policy_df,
+                default_variant=selector_anchor,
+            )
+
+            selector_station_month_policy_df = build_station_month_variant_policy(
+                calib_df=calib_selector_df,
+                station_col="station",
+                month_col="month",
+                target_col="T_hydromet",
+                anchor_variant=selector_anchor,
+                candidate_variants=selector_candidates,
+                min_gain=args.selector_min_gain,
+                min_samples=args.selector_month_min_samples,
+            )
+            pred_calib["xgb_delta_selector_station_month"] = apply_station_month_variant_policy(
+                station_series=calib["station"],
+                month_series=calib["month"],
+                pred_map=pred_calib,
+                station_policy_df=selector_station_policy_df,
+                station_month_policy_df=selector_station_month_policy_df,
+                default_variant=selector_anchor,
+            )
+            pred_test["xgb_delta_selector_station_month"] = apply_station_month_variant_policy(
+                station_series=test["station"],
+                month_series=test["month"],
+                pred_map=pred_test,
+                station_policy_df=selector_station_policy_df,
+                station_month_policy_df=selector_station_month_policy_df,
+                default_variant=selector_anchor,
+            )
+
     # metrics table
     metric_rows: list[dict[str, float | int | str]] = []
     for variant in pred_test.keys():
@@ -2136,6 +2394,8 @@ def main() -> None:
     pd.DataFrame({"station": sorted(gate_open_delta_cluster_v3_adaptive)}).to_csv(
         outdir / "xgb_delta_clustered_v3_gated_adaptive_open_stations.csv", index=False
     )
+    selector_station_policy_df.to_csv(outdir / "xgb_delta_selector_station_policy.csv", index=False)
+    selector_station_month_policy_df.to_csv(outdir / "xgb_delta_selector_station_month_policy.csv", index=False)
     pd.DataFrame({"station": sorted(heavy_stations)}).to_csv(outdir / "ridge_heavy_stations.csv", index=False)
     adaptive_gate_df.to_csv(outdir / "xgb_delta_adaptive_gate_thresholds.csv", index=False)
     safeguard_policy_df.to_csv(outdir / "xgb_delta_adaptive_safeguard_policy.csv", index=False)
@@ -2213,6 +2473,16 @@ def main() -> None:
         if not risk_summary_df.empty and (risk_summary_df["variant"] == "xgb_delta_clustered_v3_gated").any()
         else {}
     )
+    xgb_delta_selector_station_risk = (
+        risk_summary_df[risk_summary_df["variant"] == "xgb_delta_selector_station"].iloc[0].to_dict()
+        if not risk_summary_df.empty and (risk_summary_df["variant"] == "xgb_delta_selector_station").any()
+        else {}
+    )
+    xgb_delta_selector_station_month_risk = (
+        risk_summary_df[risk_summary_df["variant"] == "xgb_delta_selector_station_month"].iloc[0].to_dict()
+        if not risk_summary_df.empty and (risk_summary_df["variant"] == "xgb_delta_selector_station_month").any()
+        else {}
+    )
     summary = {
         "input_csv": str(Path(args.input_csv).resolve()),
         "train_end_year": int(args.train_end_year),
@@ -2249,6 +2519,21 @@ def main() -> None:
         "xgb_delta_clustered_v2_gated_adaptive_open_station_count": int(len(gate_open_delta_cluster_adaptive)),
         "xgb_delta_clustered_v3_gated_open_station_count": int(len(gate_open_delta_cluster_v3)),
         "xgb_delta_clustered_v3_gated_adaptive_open_station_count": int(len(gate_open_delta_cluster_v3_adaptive)),
+        "selector_anchor": selector_anchor,
+        "selector_candidates": selector_candidates,
+        "selector_min_gain": float(args.selector_min_gain),
+        "selector_month_min_samples": int(args.selector_month_min_samples),
+        "selector_station_switch_count": int((selector_station_policy_df["switched"] == 1).sum())
+        if not selector_station_policy_df.empty
+        else 0,
+        "selector_station_month_switch_count": int(
+            (
+                (selector_station_month_policy_df["eligible"] == 1)
+                & (selector_station_month_policy_df["switched"] == 1)
+            ).sum()
+        )
+        if not selector_station_month_policy_df.empty
+        else 0,
         "cluster_bridge_groups": int(args.cluster_bridge_groups),
         "cluster_bridge_min_train_rows": int(args.cluster_bridge_min_train_rows),
         "cluster_bridge_trained_cluster_count": int((cluster_fit_df["status"] == "trained").sum()),
@@ -2279,6 +2564,8 @@ def main() -> None:
             "xgb_delta_gated_adaptive_safeguard": xgb_delta_gated_adaptive_safeguard_risk,
             "xgb_delta_clustered_v2_gated": xgb_delta_clustered_v2_gated_risk,
             "xgb_delta_clustered_v3_gated": xgb_delta_clustered_v3_gated_risk,
+            "xgb_delta_selector_station": xgb_delta_selector_station_risk,
+            "xgb_delta_selector_station_month": xgb_delta_selector_station_month_risk,
         },
         "rolling_origin_enabled": bool(args.run_rolling_origin),
         "loso_enabled": bool(args.run_loso),
@@ -2289,6 +2576,9 @@ def main() -> None:
             "adaptive_gate_enabled": bool(args.adaptive_gate_enabled),
             "conformal_station_groups": int(args.conformal_station_groups),
             "conformal_min_group_month_samples": int(args.conformal_min_group_month_samples),
+            "selector_anchor": str(selector_anchor),
+            "selector_min_gain": float(args.selector_min_gain),
+            "selector_month_min_samples": int(args.selector_month_min_samples),
         },
         "soft_scale_grid": soft_scale_grid,
         "selected_soft_scales": {
