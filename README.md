@@ -1236,4 +1236,30 @@ Runs:
 - если приоритет RMSE: `v4_gain0`;
 - если приоритет MAE и более консервативные переключения selector: `v4_strict`.
 
+### 8.32 Дополнительные сводные графики для диплома
+
+Скрипт: `transfer/plot_diploma_summary_ru.py`  
+Артефакты:
+
+- `reports/figures/diploma_bridge_key_metrics_selected_vs_expanded.png`
+- `reports/figures/diploma_bridge_station_risk_expanded.png`
+- `reports/figures/diploma_transfer_modes_volgograd.png`
+
+<table align="center">
+  <tr>
+    <td align="center" width="50%">
+      <img src="reports/figures/diploma_bridge_key_metrics_selected_vs_expanded.png" width="100%">
+    </td>
+    <td align="center" width="50%">
+      <img src="reports/figures/diploma_bridge_station_risk_expanded.png" width="100%">
+    </td>
+  </tr>
+</table>
+<p align="center"><sub>Рис. 17. Слева: RMSE/MAE по ключевым bridge-вариантам на control/expanded; справа: station-risk профиль ключевых вариантов на expanded.</sub></p>
+
+<p align="center">
+  <img src="reports/figures/diploma_transfer_modes_volgograd.png" width="900">
+</p>
+<p align="center"><sub>Рис. 18. Волгоград: сравнение режимов `zero-shot / finetune / scratch` по RMSE и MAE.</sub></p>
+
 ---
