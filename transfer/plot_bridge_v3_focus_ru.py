@@ -47,8 +47,9 @@ def main() -> None:
     test["variant"] = pd.Categorical(test["variant"], categories=ordered_variants, ordered=True)
     test = test.sort_values("variant")
 
-    risk = risk[risk["variant"].isin(ordered_variants)].copy()
-    risk = risk.set_index("variant").reindex(ordered_variants).reset_index()
+    risk_variants = [v for v in ordered_variants if v != "baseline"]
+    risk = risk[risk["variant"].isin(risk_variants)].copy()
+    risk = risk.set_index("variant").reindex(risk_variants).reset_index()
     for col in ["improved_station_count", "worsened_station_count"]:
         if col not in risk.columns:
             risk[col] = 0
@@ -59,6 +60,7 @@ def main() -> None:
     )
 
     x = np.arange(len(ordered_variants))
+    x_risk = np.arange(len(risk_variants))
     width = 0.38
     fig, axes = plt.subplots(1, 2, figsize=(12.8, 4.8))
 
@@ -71,26 +73,10 @@ def main() -> None:
     axes[0].grid(axis="y", alpha=0.2)
     axes[0].legend()
 
-    axes[1].bar(x - width / 2, risk["improved_station_count"].to_numpy(), width=width, label="Станций улучшено")
-    axes[1].bar(x + width / 2, risk["worsened_station_count"].to_numpy(), width=width, label="Станций ухудшено")
-
-    # Baseline (RP5) имеет риск-профиль 0/0 и не виден столбцами.
-    # Добавляем явную опорную линию и маркер, чтобы baseline был читаем на графике.
-    if "baseline" in ordered_variants:
-        base_idx = ordered_variants.index("baseline")
-        ymax = int(
-            max(
-                1,
-                risk["improved_station_count"].max(),
-                risk["worsened_station_count"].max(),
-            )
-        )
-        axes[1].set_ylim(-1, ymax * 1.15)
-        axes[1].axhline(0, color="crimson", linestyle="--", linewidth=1.2, label="Базовая линия RP5 (0/0)")
-        axes[1].scatter([base_idx], [0], color="crimson", s=46, zorder=5)
-
-    axes[1].set_xticks(x)
-    axes[1].set_xticklabels([LABELS[v] for v in ordered_variants], rotation=20, ha="right")
+    axes[1].bar(x_risk - width / 2, risk["improved_station_count"].to_numpy(), width=width, label="Станций улучшено")
+    axes[1].bar(x_risk + width / 2, risk["worsened_station_count"].to_numpy(), width=width, label="Станций ухудшено")
+    axes[1].set_xticks(x_risk)
+    axes[1].set_xticklabels([LABELS[v] for v in risk_variants], rotation=20, ha="right")
     axes[1].set_ylabel("Число станций")
     axes[1].set_title("Station-risk профиль (test)")
     axes[1].grid(axis="y", alpha=0.2)
