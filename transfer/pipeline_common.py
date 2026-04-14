@@ -179,6 +179,21 @@ def add_station_train_mean_feature(
     return out
 
 
+def apply_station_train_mean_from_reference(
+    df_target: pd.DataFrame,
+    df_reference_train: pd.DataFrame,
+    meta: DatasetMeta,
+    target_col: str = TARGET_COLUMN,
+) -> pd.DataFrame:
+    out = df_target.copy()
+    ref = df_reference_train.dropna(subset=[target_col]).copy()
+    train_mean = ref.groupby(meta.station_col)[target_col].mean().rename("station_train_mean_T")
+    global_fill = float(ref[target_col].mean()) if not ref.empty else 0.0
+    out = out.merge(train_mean, left_on=meta.station_col, right_index=True, how="left")
+    out["station_train_mean_T"] = out["station_train_mean_T"].fillna(global_fill)
+    return out
+
+
 def build_feature_frame(
     df: pd.DataFrame,
     meta: DatasetMeta,

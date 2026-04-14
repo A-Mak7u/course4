@@ -516,6 +516,7 @@ Runs:
 - успешная загрузка: `132` станции; не найдено в Meteostat: `32586`
 - итоговый RP5-like CSV: `data/rosgidromet/bridge_inputs/rp5_meteostat_daily_2013_2023_allstations.csv`
 - объём RP5-like ряда: `467577` строк, `132` станции
+- в bridge-ветке `T_rp5` соответствует Meteostat-прокси (RP5-like), а не прямой выгрузке RP5
 
 ### 8.2 Overlap и отбор station-set для моста
 
@@ -816,6 +817,7 @@ Run: `outputs_runs/20260411_214201_rp5_hydromet_bridge_improvements_selected125`
 - грид: `outputs_runs/20260412_conformal_grid/conformal_grid_summary.csv`
 - лучший tradeoff: `groups=4`, `min_group_month_samples=10`
 - запуск: `outputs_runs/20260412_conformal_grid/g4_m10`
+- tradeoff-score в grid считался по test-метрикам интервалов (`coverage/width/CRPS-like`), поэтому выбор `(4,10)` зафиксирован как exploratory-конфигурация
 
 Сравнение на target `0.85` (`g4_m10`):
 
@@ -954,6 +956,7 @@ Run: `outputs_runs/20260412_125500_bridge_control_selected125_v2`
 - rebuilt overlap: `467007` строк, `132` станции, окно `2013-01-01...2023-12-31`
 - policy `expanded_min10_2013_2023`: `132` станции
 - policy `control_selected125_2013_2023`: `462851` строк, `125` станций
+- для текущего порога `min10` station-set совпадает для full-window (`2013-2023`) и train-only окна (`<=2020`): `132` станции
 
 ### 8.19 Честная перепроверка: control vs expanded
 
@@ -969,6 +972,9 @@ Run: `outputs_runs/20260412_125500_bridge_control_selected125_v2`
 
 - control (`125` станций): `RMSE=1.5813`, `MAE=1.0864`, `R2=0.9896`
 - expanded (`132` станции): `RMSE=1.6261`, `MAE=1.0969`, `R2=0.9890`
+- относительный выигрыш к baseline RP5 остаётся близким:
+- control: `RMSE -6.10%`, `MAE -4.23%`
+- expanded: `RMSE -5.75%`, `MAE -4.15%`
 - в обоих наборах `xgb_delta_gated` лучше baseline по RMSE и MAE
 
 <table align="center">
@@ -1037,6 +1043,7 @@ Run: `outputs_runs/20260412_141500_transfer_volgograd_v2`
 
 - finetune: `RMSE +0.3288`, `MAE +0.2486`, `R2 +0.00546`
 - scratch: `RMSE +0.3737`, `MAE +0.2871`, `R2 +0.00607`
+- практическое ограничение: без региональной адаптации (`zero-shot`) качество заметно ниже, чем у адаптированных режимов
 
 ### 8.22 Фактический итог этапа 8
 
@@ -1044,7 +1051,7 @@ Run: `outputs_runs/20260412_141500_transfer_volgograd_v2`
 - Расширение overlap до `132` станций не сломало профиль: модель остаётся лучше baseline RP5 по RMSE/MAE.
 - Cluster v2 в текущей реализации не дал устойчивого превосходства над `xgb_delta_gated`.
 - По rolling-origin выигрыши стабильные, по LOSO остаётся station-tail риска.
-- На переносе в Волгоград выполнено честное сравнение трёх режимов; лучший результат дал `scratch`, затем `finetune`, затем `zero-shot`.
+- На переносе в Волгоград выполнено честное сравнение трёх режимов; лучший результат дал `scratch`, затем `finetune`, затем `zero-shot`, что фиксирует необходимость региональной адаптации.
 
 ### 8.D Adaptive gate + safeguard + cluster v3 (`8.23-8.27`)
 

@@ -11,6 +11,7 @@ from tqdm.auto import tqdm
 from statsmodels.tsa.stattools import acf, pacf
 from statsmodels.stats.diagnostic import acorr_ljungbox
 from pathlib import Path
+from station_mean_utils import apply_station_train_mean_feature
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 os.chdir(PROJECT_ROOT)
@@ -72,10 +73,6 @@ test_mask  = (df["year"]>=2022)&(df["year"]<=2023)
 train = df[train_mask].copy()
 test  = df[test_mask].copy()
 
-train_mean_T = train.dropna(subset=[target]).groupby(scol)[target].mean().rename("station_train_mean_T")
-df = df.merge(train_mean_T, left_on=scol, right_index=True, how="left")
-df["station_train_mean_T"] = df["station_train_mean_T"].fillna(df["station_train_mean_T"].mean())
-
 base = [
     "Temperature_2m","Dewpoint_2m","Surface_pressure","Evaporation","Total_precipitation",
     "LST_Day","LST_Night","dayofyear","sin_doy","cos_doy","dewpoint_dep","diurnal_range",
@@ -89,6 +86,11 @@ test  = df[test_mask].dropna(subset=[target]).copy()
 val_year = int(train["year"].max())
 inner_train = train[train["year"]<val_year]
 inner_val   = train[train["year"]==val_year]
+
+inner_train = apply_station_train_mean_feature(inner_train, inner_train, scol, target_col=target)
+inner_val = apply_station_train_mean_feature(inner_val, inner_train, scol, target_col=target)
+train = apply_station_train_mean_feature(train, train, scol, target_col=target)
+test = apply_station_train_mean_feature(test, train, scol, target_col=target)
 
 def D(X, y): return xgb.DMatrix(X[features], label=y)
 
@@ -127,6 +129,7 @@ def pack(y, p):
 pred_train = model.predict(D(train, train[target]))
 pred_test  = model.predict(D(test,  test[target]))
 full_df = df.dropna(subset=[target]).copy()
+full_df = apply_station_train_mean_feature(full_df, train, scol, target_col=target)
 pred_full = model.predict(D(full_df, full_df[target]))
 
 metrics_train = pack(train[target], pred_train)

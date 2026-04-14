@@ -9,6 +9,7 @@ from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error, m
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from pathlib import Path
+from station_mean_utils import apply_station_train_mean_feature
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 os.chdir(PROJECT_ROOT)
@@ -70,20 +71,18 @@ base = [
 lags = [f"{c}_lag{L}" for c in ["Temperature_2m","Dewpoint_2m","LST_Day","LST_Night"] for L in (1,2,3)]
 
 def run_pipeline(df_in, tag):
-    train = df_in[(df_in["year"]>=2013)&(df_in["year"]<=2021)].copy()
-    test  = df_in[(df_in["year"]>=2022)&(df_in["year"]<=2023)].copy()
+    features = [f for f in base+lags if f in df_in.columns or f == "station_train_mean_T"]
 
-    train_mean_T = train.dropna(subset=[target]).groupby(scol)[target].mean().rename("station_train_mean_T")
-    dfx = df_in.merge(train_mean_T, left_on=scol, right_index=True, how="left")
-    dfx["station_train_mean_T"] = dfx["station_train_mean_T"].fillna(dfx["station_train_mean_T"].mean())
-
-    features = [f for f in base+lags if f in dfx.columns]
-
-    train = dfx[(dfx["year"]>=2013)&(dfx["year"]<=2021)].dropna(subset=[target]).copy()
-    test  = dfx[(dfx["year"]>=2022)&(dfx["year"]<=2023)].dropna(subset=[target]).copy()
+    train = df_in[(df_in["year"]>=2013)&(df_in["year"]<=2021)].dropna(subset=[target]).copy()
+    test  = df_in[(df_in["year"]>=2022)&(df_in["year"]<=2023)].dropna(subset=[target]).copy()
     val_year = int(train["year"].max())
     inner_train = train[train["year"]<val_year]
     inner_val   = train[train["year"]==val_year]
+
+    inner_train = apply_station_train_mean_feature(inner_train, inner_train, scol, target_col=target)
+    inner_val = apply_station_train_mean_feature(inner_val, inner_train, scol, target_col=target)
+    train = apply_station_train_mean_feature(train, train, scol, target_col=target)
+    test = apply_station_train_mean_feature(test, train, scol, target_col=target)
 
     def D(X, y): return xgb.DMatrix(X[features], label=y)
 
@@ -122,7 +121,8 @@ def run_pipeline(df_in, tag):
 
     pred_train = model.predict(D(train, train[target]))
     pred_test  = model.predict(D(test,  test[target]))
-    full_df = dfx.dropna(subset=[target]).copy()
+    full_df = df_in.dropna(subset=[target]).copy()
+    full_df = apply_station_train_mean_feature(full_df, train, scol, target_col=target)
     pred_full = model.predict(D(full_df, full_df[target]))
 
     metrics_train = pack(train[target], pred_train)

@@ -15,6 +15,7 @@ import xgboost as xgb
 
 from pipeline_common import (
     TARGET_COLUMN,
+    apply_station_train_mean_from_reference,
     build_feature_frame,
     choose_validation_year,
     ensure_dir,
@@ -240,9 +241,8 @@ def main() -> None:
         meta,
         train_mask=train_mask0,
         zero_inflated_precip=False,
-        include_station_mean=True,
+        include_station_mean=False,
     )
-    features = resolve_feature_list(df, include_station_mean=True)
     station_col = meta.station_col
 
     train_mask, test_mask = split_by_year(
@@ -262,6 +262,12 @@ def main() -> None:
     inner_val = train[train["year"] == val_year].copy()
     if inner_train.empty or inner_val.empty:
         raise RuntimeError("Не удалось сформировать inner_train/inner_val")
+
+    inner_train = apply_station_train_mean_from_reference(inner_train, inner_train, meta)
+    inner_val = apply_station_train_mean_from_reference(inner_val, inner_train, meta)
+    train = apply_station_train_mean_from_reference(train, train, meta)
+    test = apply_station_train_mean_from_reference(test, train, meta)
+    features = resolve_feature_list(train, include_station_mean=True)
 
     if args.calibration_method == "scale":
         tune_train = inner_train

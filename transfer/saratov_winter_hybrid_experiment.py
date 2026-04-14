@@ -14,6 +14,7 @@ import pandas as pd
 
 from pipeline_common import (
     TARGET_COLUMN,
+    apply_station_train_mean_from_reference,
     build_feature_frame,
     choose_validation_year,
     compute_metrics,
@@ -85,10 +86,9 @@ def main() -> None:
         df,
         meta,
         train_mask=train_mask_base,
-        include_station_mean=True,
+        include_station_mean=False,
         zero_inflated_precip=args.zero_inflated_precip,
     )
-    features = resolve_feature_list(df, include_station_mean=True)
 
     train_mask, test_mask = split_by_year(
         df,
@@ -107,6 +107,12 @@ def main() -> None:
     inner_val_full = train_full[train_full["year"] == val_year].copy()
     if inner_train_full.empty or inner_val_full.empty:
         raise RuntimeError("inner_train/inner_val для full пусты")
+
+    inner_train_full = apply_station_train_mean_from_reference(inner_train_full, inner_train_full, meta)
+    inner_val_full = apply_station_train_mean_from_reference(inner_val_full, inner_train_full, meta)
+    train_full = apply_station_train_mean_from_reference(train_full, train_full, meta)
+    test_full = apply_station_train_mean_from_reference(test_full, train_full, meta)
+    features = resolve_feature_list(train_full, include_station_mean=True)
 
     print(
         f"[winter-hybrid] full_tune start rows_train={len(inner_train_full)} rows_val={len(inner_val_full)} features={len(features)}",

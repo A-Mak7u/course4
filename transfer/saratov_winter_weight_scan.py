@@ -16,6 +16,7 @@ import xgboost as xgb
 
 from pipeline_common import (
     TARGET_COLUMN,
+    apply_station_train_mean_from_reference,
     build_feature_frame,
     compute_metrics,
     ensure_dir,
@@ -86,10 +87,9 @@ def main() -> None:
         df,
         meta,
         train_mask=train_mask_base,
-        include_station_mean=True,
+        include_station_mean=False,
         zero_inflated_precip=args.zero_inflated_precip,
     )
-    features = resolve_feature_list(df, include_station_mean=True)
 
     train_mask, test_mask = split_by_year(
         df,
@@ -102,6 +102,10 @@ def main() -> None:
     test = df.loc[test_mask].dropna(subset=[TARGET_COLUMN]).copy()
     if train.empty or test.empty:
         raise RuntimeError("train/test пустые")
+
+    train = apply_station_train_mean_from_reference(train, train, meta)
+    test = apply_station_train_mean_from_reference(test, train, meta)
+    features = resolve_feature_list(train, include_station_mean=True)
 
     val_year = int(train["year"].max())
     inner_val = train[train["year"] == val_year].copy()

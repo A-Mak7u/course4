@@ -9,6 +9,7 @@ import pandas as pd
 
 from pipeline_common import (
     TARGET_COLUMN,
+    apply_station_train_mean_from_reference,
     build_feature_frame,
     choose_validation_year,
     compute_metrics,
@@ -79,7 +80,7 @@ def prepare_dataset(
     seed: int = 42,
 ) -> tuple[pd.DataFrame, str, dict[str, pd.DataFrame], list[str]]:
     df, meta = load_dataset(csv_path)
-    train_mask, _ = split_by_year(
+    train_mask_initial, _ = split_by_year(
         df.assign(year=pd.to_datetime(df[meta.date_col]).dt.year),
         train_start_year=train_start_year,
         train_end_year=train_end_year,
@@ -89,9 +90,9 @@ def prepare_dataset(
     df = build_feature_frame(
         df,
         meta,
-        train_mask=train_mask,
+        train_mask=train_mask_initial,
         zero_inflated_precip=zero_inflated_precip,
-        include_station_mean=include_station_mean,
+        include_station_mean=False,
     )
     if winter_only:
         df = filter_winter(df)
@@ -116,13 +117,22 @@ def prepare_dataset(
     if inner_train.empty or inner_val.empty:
         raise RuntimeError(f"Не удалось отделить inner_train/inner_val для {csv_path}")
 
-    features = resolve_feature_list(df, include_station_mean=include_station_mean)
+    if include_station_mean:
+        inner_train = apply_station_train_mean_from_reference(inner_train, inner_train, meta)
+        inner_val = apply_station_train_mean_from_reference(inner_val, inner_train, meta)
+        train = apply_station_train_mean_from_reference(train, train, meta)
+        test = apply_station_train_mean_from_reference(test, train, meta)
+        full = apply_station_train_mean_from_reference(df.dropna(subset=[TARGET_COLUMN]).copy(), train, meta)
+    else:
+        full = df.dropna(subset=[TARGET_COLUMN]).copy()
+
+    features = resolve_feature_list(train, include_station_mean=include_station_mean)
     splits = {
         "train": train,
         "test": test,
         "inner_train": inner_train,
         "inner_val": inner_val,
-        "full": df.dropna(subset=[TARGET_COLUMN]).copy(),
+        "full": full,
     }
     return df, meta.station_col, splits, features
 
