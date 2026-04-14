@@ -23,6 +23,7 @@ LABELS = {
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Фокусный график по bridge v3 (русские подписи).")
     p.add_argument("--run-dir", type=Path, required=True)
+    p.add_argument("--output", type=Path, default=None, help="Опциональный путь для сохранения PNG.")
     return p.parse_args()
 
 
@@ -72,6 +73,22 @@ def main() -> None:
 
     axes[1].bar(x - width / 2, risk["improved_station_count"].to_numpy(), width=width, label="Станций улучшено")
     axes[1].bar(x + width / 2, risk["worsened_station_count"].to_numpy(), width=width, label="Станций ухудшено")
+
+    # Baseline (RP5) имеет риск-профиль 0/0 и не виден столбцами.
+    # Добавляем явную опорную линию и маркер, чтобы baseline был читаем на графике.
+    if "baseline" in ordered_variants:
+        base_idx = ordered_variants.index("baseline")
+        ymax = int(
+            max(
+                1,
+                risk["improved_station_count"].max(),
+                risk["worsened_station_count"].max(),
+            )
+        )
+        axes[1].set_ylim(-1, ymax * 1.15)
+        axes[1].axhline(0, color="crimson", linestyle="--", linewidth=1.2, label="Базовая линия RP5 (0/0)")
+        axes[1].scatter([base_idx], [0], color="crimson", s=46, zorder=5)
+
     axes[1].set_xticks(x)
     axes[1].set_xticklabels([LABELS[v] for v in ordered_variants], rotation=20, ha="right")
     axes[1].set_ylabel("Число станций")
@@ -80,7 +97,9 @@ def main() -> None:
     axes[1].legend()
 
     fig.tight_layout()
-    fig.savefig(run_dir / "v3_focus_compare_test.png", dpi=150)
+    out = args.output.resolve() if args.output else (run_dir / "v3_focus_compare_test.png")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=150)
     plt.close(fig)
 
 
